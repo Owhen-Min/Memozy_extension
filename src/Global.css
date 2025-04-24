@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+
+@theme {
+  /* 폰트 */
+  --color-level1: #EAF1FF;
+  --color-level2: #D6E5FF;
+  --color-level3: #91BAFF;
+  --color-level4: #3E6FFA;
+  --color-level5: #191FD9;
+  --color-level6: #002086;
+  --color-main: #1A73E8;
+  --color-sub: #F5F5F5;
+  --color-success: #4CAF50;
+  --color-error: #DC3545;
+  --color-warning: #FFC107;
+  --color-dark: #333333;
+  --color-gray: #7B7B7B;
+  --color-light-gray: #EEEEEE;
+}
+
