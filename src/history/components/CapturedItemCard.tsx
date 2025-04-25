@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
 import { CapturedItem, ImageContent } from '../../types';
+import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface CapturedItemCardProps {
   item: CapturedItem;
@@ -60,7 +62,75 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
       case 'text':
         return (
           <div className="card-content text-sm">
-            {item.content as string}
+            <div className="prose prose-slate dark:prose-invert max-w-none overflow-auto">
+              <ReactMarkdown
+                components={{
+                  // 코드 블록 커스텀 렌더링
+                  code({ node, className, children, ...props }) {
+                    const match = /language-(\w+)/.exec(className || '');
+                    return match ? (
+                      <div className="rounded-md overflow-hidden my-4">
+                        <SyntaxHighlighter
+                          style={vscDarkPlus as any}
+                          language={match[1]}
+                          PreTag="div"
+                          {...props}
+                        >
+                          {String(children).replace(/\n$/, '')}
+                        </SyntaxHighlighter>
+                      </div>
+                    ) : (
+                      <code className={className} {...props}>
+                        {children}
+                      </code>
+                    );
+                  },
+                  // 테이블 커스텀 렌더링
+                  table({ node, ...props }) {
+                    return (
+                      <div className="overflow-x-auto my-8 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700" {...props} />
+                      </div>
+                    );
+                  },
+                  // 테이블 헤더 커스텀 렌더링
+                  thead({ node, ...props }) {
+                    return (
+                      <thead className="bg-gray-50 dark:bg-gray-800" {...props} />
+                    );
+                  },
+                  // 테이블 헤더 셀 커스텀 렌더링
+                  th({ node, ...props }) {
+                    return (
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider" 
+                        {...props} 
+                      />
+                    );
+                  },
+                  // 테이블 바디 셀 커스텀 렌더링
+                  td({ node, ...props }) {
+                    return (
+                      <td 
+                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300" 
+                        {...props} 
+                      />
+                    );
+                  },
+                  // 인용 블록 커스텀 렌더링
+                  blockquote({ node, ...props }) {
+                    return (
+                      <blockquote 
+                        className="border-l-4 border-gray-300 dark:border-gray-700 pl-4 italic my-6 text-gray-600 dark:text-gray-400" 
+                        {...props} 
+                      />
+                    );
+                  }
+                }}
+              >
+                {item.content as string}
+              </ReactMarkdown>
+            </div>
           </div>
         );
         

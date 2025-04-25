@@ -1,5 +1,6 @@
-import { Message, NotificationType, ItemType, CapturedItem } from '../types';
+import { Message, CapturedItem } from '../types';
 import { extractContent } from '@wrtnlabs/web-content-extractor';
+import TurndownService from 'turndown';
 
 console.log('드래그 & 저장 콘텐츠 스크립트 로드됨');
 
@@ -100,8 +101,12 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
       console.log('전체 HTML 저장 요청됨');
       // 현재 페이지 HTML만 저장
       savePageHtml()
-        .then(() => {
-          sendResponse({ success: true });
+        .then((result) => {
+          // 결과 상태와 에러 메시지 그대로 전달
+          sendResponse({ 
+            success: result.success, 
+            error: result.error 
+          });
         })
         .catch(error => {
           console.error('페이지 HTML 저장 오류:', error);
@@ -290,9 +295,6 @@ function showNotification(item: CapturedItem) {
     // 알림 요소 생성
     const notification = document.createElement('div');
     
-    // 알림 타입 설정
-    const notificationType: NotificationType = 'success';
-    
     // 아이템 타입별 알림 내용 설정
     let message = '';
     let bgColor = '';
@@ -306,8 +308,8 @@ function showNotification(item: CapturedItem) {
         message = '이미지가 저장되었습니다.';
         bgColor = 'linear-gradient(135deg, #2196F3, #1976D2)';
         break;
-      case 'html':
-        message = 'HTML이 저장되었습니다.';
+      case 'error':
+        message = item.meta?.errorMessage || '새로고침 후 시도해주세요.';
         bgColor = 'linear-gradient(135deg, #FF9800, #F57C00)';
         break;
       default:
@@ -361,147 +363,111 @@ function showNotification(item: CapturedItem) {
 }
 
 // 현재 페이지의 HTML 저장 후 텍스트 추출
-async function savePageHtml(): Promise<void> {
+async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
   try {
-    // 네이버 블로그 특수 처리
-    if (window.location.hostname === 'blog.naver.com') {
+    let html: string | null = null;
+    const hostname = window.location.hostname;
+    const errorMessages: { [key: string]: string } = {
+      'blog.naver.com': '네이버 블로그 글 안에서 캡처 버튼을 눌러주세요.',
+      'velog.io': '벨로그 글 안에서 캡처 버튼을 눌러주세요.',
+      'tistory': '티스토리 글에서 캡처 버튼을 눌러주세요.'
+    };
+    
+    // 사이트별 HTML 컨텐츠 추출 로직
+    if (hostname === 'blog.naver.com') {
       const iframe = document.body.querySelector('iframe');
       if (iframe && iframe.src) {
         const iframeSrc = iframe.src;
         console.log('네이버 블로그 페이지 저장 시작:', iframeSrc);
         
         try {
-          // iframe 내용 가져오기 시도
-          await sendMessageToBackground({
+          const response = await sendMessageToBackground({
             action: 'fetchIframeContent',
             url: iframeSrc
-          }).then(async (response) => {
-            if (response && response.html) {
-              // 백그라운드에서 가져온 HTML 컨텐츠
-              let iframeHtml = response.html;
-              
-              // postListBody ID를 가진 div만 추출
-              try {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(response.html, 'text/html');
-                const wholeBodyDiv = doc.getElementById('postListBody');
-                
-                if (wholeBodyDiv) {
-                  console.log('whole-body div를 찾았습니다.');
-                  iframeHtml = wholeBodyDiv.outerHTML;
-                } else {
-                  console.log('whole-body div를 찾을 수 없습니다. 전체 HTML을 사용합니다.');
-                }
-              } catch (parseError) {
-                console.error('HTML 파싱 오류:', parseError);
-                // 파싱 오류 시 원본 HTML 사용
-              }
-              
-              // 추출된 텍스트 얻기
-              const extractedText = await extractContent(iframeHtml);
-              
-              // 저장 처리
-              await sendMessageToBackground({
-                action: 'contentCaptured',
-                type: 'text',
-                content: extractedText,
-                meta: {
-                  format: 'plain',
-                  originalType: 'html',
-                  saveType: 'full'
-                }
-              });
-              
-              console.log('네이버 블로그 페이지 텍스트 추출 및 저장 성공');
-            } else {
-              throw new Error('iframe 컨텐츠를 가져오지 못했습니다');
-            }
           });
+          
+          if (response && response.html) {
+            try {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(response.html, 'text/html');
+              const wholeBodyDiv = doc.getElementById('postListBody');
+              
+              if (wholeBodyDiv) {
+                console.log('whole-body div를 찾았습니다.');
+                html = wholeBodyDiv.outerHTML;
+              }
+            } catch (parseError) {
+              console.error('HTML 파싱 오류:', parseError);
+            }
+          }
         } catch (error) {
           console.error('네이버 블로그 iframe 처리 오류:', error);
-          throw error;
         }
-        return;
       }
-    } else if (window.location.hostname === 'velog.io'){
-      const velogContent = document.querySelector('.atom-one')
-      if (velogContent) {
+    } else if (hostname === 'velog.io') {
+      const content = document.querySelector('.atom-one');
+      if (content) {
         console.log('velog 컨텐츠 저장 시작');
-        try {
-          const contentHtml = velogContent.outerHTML;
-          const extractedText = await extractContent(contentHtml);
-          
-          await sendMessageToBackground({
-            action: 'contentCaptured',
-            type: 'text',
-            content: extractedText,
-            meta: {
-              format: 'plain',
-              originalType: 'html',
-              saveType: 'full'
-            }
-          });
-          
-          console.log('velog 페이지 텍스트 추출 및 저장 성공');
-        } catch (error) {
-          console.error('velog 컨텐츠 처리 오류:', error);
-          throw error;
-        }
-        return;
+        html = content.outerHTML;
       }
-    } else if (window.location.hostname.endsWith('.tistory.com')) {
+    } else if (hostname.endsWith('.tistory.com')) {
       console.log('티스토리 블로그 페이지 저장 시작');
-      try {
-        // 티스토리 메인 콘텐츠 영역 선택
-        const tistoryContent = document.querySelector('.entry-content');
-        if (tistoryContent) {
-          const contentHtml = tistoryContent.outerHTML;
-          const extractedText = await extractContent(contentHtml);
-          
-          await sendMessageToBackground({
-            action: 'contentCaptured',
-            type: 'text',
-            content: extractedText,
-            meta: {
-              format: 'plain',
-              originalType: 'html',
-              saveType: 'full'
-            }
-          });
-          
-          console.log('티스토리 페이지 텍스트 추출 및 저장 성공');
-        } else {
-          console.log('티스토리 콘텐츠 영역을 찾을 수 없습니다.');
-        }
-      } catch (error) {
-        console.error('티스토리 컨텐츠 처리 오류:', error);
-        throw error;
+      const content = document.querySelector('.entry-content');
+      if (content) {
+        html = content.outerHTML;
       }
-      return;
-    } else{  
-      // 일반 페이지 저장 처리
+    } else {
+      // 일반 페이지는 전체 HTML 저장
       const doctype = document.doctype ? 
         new XMLSerializer().serializeToString(document.doctype) : '';
-      const html = doctype + document.documentElement.outerHTML;
+      html = doctype + document.documentElement.outerHTML;
+    }
+    
+    // HTML 추출 실패 시 에러 반환
+    if (!html) {
+      let errorMsg = '콘텐츠를 찾을 수 없습니다.';
       
-      const extractedText = await extractContent(html);
-      
-      await sendMessageToBackground({
-        action: 'contentCaptured',
-        type: 'text',
-        content: extractedText,
-        meta: {
-          format: 'plain',
-          originalType: 'html',
-          saveType: 'full'
+      // 해당 사이트에 맞는 에러 메시지 찾기
+      for (const key in errorMessages) {
+        if (hostname === key || hostname.endsWith(`.${key}`)) {
+          errorMsg = errorMessages[key];
+          break;
         }
+      }
+      
+      showNotification({
+        id: 0,
+        type: 'error',
+        pageTitle: '',
+        pageUrl: '',
+        timestamp: new Date(),
+        content: '',
+        meta: { errorMessage: errorMsg }
       });
       
-      console.log('HTML 텍스트 추출 및 저장 성공');
+      return { success: false, error: errorMsg };
     }
-  } catch (error) {
-    console.error('HTML 저장 오류:', error);
-    throw error;
+    
+    const turndownService = new TurndownService();
+    const extractedText = turndownService.turndown(html);
+    
+    await sendMessageToBackground({
+      action: 'contentCaptured',
+      type: 'text',
+      content: extractedText,
+      meta: {
+        format: 'plain',
+        originalType: 'html',
+        saveType: 'full'
+      }
+    });
+    
+    console.log('HTML 텍스트 추출 및 저장 성공');
+    return { success: true };
+    
+  } catch (error: any) {
+    console.error('HTML 저장 중 오류:', error);
+    return { success: false, error: error.message || 'HTML 저장 중 오류가 발생했습니다' };
   }
 }
  

@@ -24,7 +24,7 @@ export default function App() {
   const handleSaveHtml = async () => {
     try {
       const result = await saveHtml();
-      if (result) {
+      if (result.success) {
         setStatusMessage({
           type: 'success',
           message: '자료가 성공적으로 저장되었습니다'
@@ -32,14 +32,14 @@ export default function App() {
       } else {
         setStatusMessage({
           type: 'error',
-          message: '자료 저장 중 오류가 발생했습니다'
+          message: result.error || '자료 저장 중 오류가 발생했습니다'
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('자료 저장 중 오류:', error);
       setStatusMessage({
         type: 'error',
-        message: '자료 저장 중 오류가 발생했습니다'
+        message: error.message || '자료 저장 중 오류가 발생했습니다'
       });
     }
   };

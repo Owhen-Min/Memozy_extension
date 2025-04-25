@@ -9,7 +9,7 @@ export interface MetaData {
   format?: string;
   combinedContent?: boolean;
   itemCount?: number;
-  saveType?: 'full' | 'iframe' | 'full_with_iframes';
+  saveType?: 'full' | 'iframe' | 'full_with_iframes' | 'error';
   iframeIndex?: number;
   merged?: boolean;
   originalType?: string;

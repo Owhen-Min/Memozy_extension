@@ -113,23 +113,29 @@ export const useStorage = () => {
           
           // 연결 확인 후 저장 메시지 전송
           if (response && response.success) {
-            await chrome.tabs.sendMessage(tabs[0].id!, {
+            const saveResult = await chrome.tabs.sendMessage(tabs[0].id!, {
               action: 'saveFullHtml'
             });
-            return true;
+            
+            // 결과 확인
+            if (saveResult && !saveResult.success) {
+              console.error('저장 실패:', saveResult.error);
+              return { success: false, error: saveResult.error || '저장 중 오류가 발생했습니다' };
+            }
+            return { success: true };
           } else {
             console.error('콘텐츠 스크립트 응답 실패');
-            return false;
+            return { success: false, error: '페이지와 연결이 원활하지 않습니다' };
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error('콘텐츠 스크립트와 통신 오류:', error);
-          return false;
+          return { success: false, error: error.message || '페이지와 통신 중 오류가 발생했습니다' };
         }
       }
-      return false;
-    } catch (error) {
+      return { success: false, error: '현재 활성화된 탭을 찾을 수 없습니다' };
+    } catch (error: any) {
       console.error('HTML 저장 중 오류:', error);
-      return false;
+      return { success: false, error: error.message || 'HTML 저장 중 오류가 발생했습니다' };
     }
   }, []);
 

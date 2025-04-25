@@ -69,34 +69,40 @@ export default function CreateProblemModal({ isOpen, onClose, onSubmit, item }: 
             <label className="block text-lg font-medium mb-2">
               문제 유형
             </label>
-            <div className="space-y-2">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={questionTypes.includes('multiple-choice')}
-                  onChange={() => handleQuestionTypeChange('multiple-choice')}
-                  className="mr-2"
-                />
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => handleQuestionTypeChange('multiple-choice')}
+                className={`px-3 py-1 rounded border ${
+                  questionTypes.includes('multiple-choice') 
+                    ? 'bg-blue-500 text-white border-blue-500' 
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+                }`}
+              >
                 객관식
-              </label>
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={questionTypes.includes('ox')}
-                  onChange={() => handleQuestionTypeChange('ox')}
-                  className="mr-2"
-                />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuestionTypeChange('ox')}
+                className={`px-3 py-1 rounded border ${
+                  questionTypes.includes('ox') 
+                    ? 'bg-blue-500 text-white border-blue-500' 
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+                }`}
+              >
                 OX 문제
-              </label>
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={questionTypes.includes('short-answer')}
-                  onChange={() => handleQuestionTypeChange('short-answer')}
-                  className="mr-2"
-                />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuestionTypeChange('short-answer')}
+                className={`px-3 py-1 rounded border ${
+                  questionTypes.includes('short-answer') 
+                    ? 'bg-blue-500 text-white border-blue-500' 
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+                }`}
+              >
                 단답형
-              </label>
+              </button>
             </div>
           </div>
 

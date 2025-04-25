@@ -1,5 +1,5 @@
 // 캡처된 아이템 타입
-export type ItemType = 'text' | 'html' | 'image';
+export type ItemType = 'text' | 'html' | 'image' | 'error';
 
 // 알림 타입
 export type NotificationType = 'success' | 'error' | 'info' | 'warning';
@@ -14,11 +14,12 @@ export interface ImageContent {
 // 메타데이터 인터페이스
 export interface MetaData {
   format?: string;
-  saveType?: 'full';
+  saveType?: 'full' | 'iframe' | 'full_with_iframes' | 'error';
   iframeIndex?: number;
   combinedContent?: boolean;
   merged?: boolean;
   originalType?: string;
+  errorMessage?: string;
   extractedContent?: {
     content?: string;
   };

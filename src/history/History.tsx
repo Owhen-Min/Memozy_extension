@@ -11,7 +11,7 @@ export default function History() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<ItemType | 'all'>('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [expandedGroups, setExpandedGroups] = useState<{[key: string]: boolean}>({});
+  const [expandedGroups, setExpandedGroups] = useState<string>('');
   const [summarizingUrls, setSummarizingUrls] = useState<{[url: string]: boolean}>({});
   const [creatingProblemsUrls, setCreatingProblemsUrls] = useState<{[url: string]: boolean}>({});
   const [isProblemModalOpen, setIsProblemModalOpen] = useState(false);
@@ -38,16 +38,7 @@ export default function History() {
           
           return dateB - dateA;
         });
-        
         setSavedItems(sortedItems);
-        
-        // 초기 확장 상태 설정
-        const initialExpandedState: {[key: string]: boolean} = {};
-        const titles = new Set<string>(sortedItems.map((item: CapturedItem) => item.pageTitle || '제목 없음'));
-        titles.forEach((title: string) => {
-          initialExpandedState[title] = false; // 기본적으로 모든 그룹 닫기
-        });
-        setExpandedGroups(initialExpandedState);
       } catch (error) {
         console.error('아이템 로드 오류:', error);
       } finally {
@@ -63,17 +54,11 @@ export default function History() {
         const newItems = changes.savedItems.newValue || [];
         setSavedItems(newItems);
         
-        // 새 아이템에 대한 확장 상태 업데이트
-        setExpandedGroups(prev => {
-          const updatedState = {...prev};
-          const titles = new Set<string>(newItems.map((item: CapturedItem) => item.pageTitle || '제목 없음'));
-          titles.forEach((title: string) => {
-            if (updatedState[title] === undefined) {
-              updatedState[title] = true;
-            }
-          });
-          return updatedState;
-        });
+        // 새 아이템이 있지만 확장된 그룹이 없으면 첫 번째 그룹 확장
+        if (expandedGroups === '' && newItems.length > 0) {
+          const firstTitle = newItems[0]?.pageTitle || '제목 없음';
+          setExpandedGroups(firstTitle);
+        }
       }
     };
     
@@ -156,22 +141,22 @@ export default function History() {
     return true;
   });
   
-  // 타이틀별로 아이템 그룹화
-  const groupedItems: {[title: string]: CapturedItem[]} = {};
+  // url별로 아이템 그룹화
+  const groupedItems: {[url: string]: {title: string, items: CapturedItem[]}} = {};
   filteredItems.forEach(item => {
-    const title = item.pageTitle || '제목 없음';
-    if (!groupedItems[title]) {
-      groupedItems[title] = [];
+    const url = item.pageUrl;
+    if (!groupedItems[url]) {
+      groupedItems[url] = {
+        title: item.pageTitle || url,
+        items: []
+      };
     }
-    groupedItems[title].push(item);
+    groupedItems[url].items.push(item);
   });
   
   // 그룹 접기/펼치기 토글 함수
   const toggleGroup = (title: string) => {
-    setExpandedGroups(prev => ({
-      ...prev,
-      [title]: !prev[title]
-    }));
+    setExpandedGroups(prev => prev === title ? '' : title);
   };
   
   // 요약 기능 처리
@@ -271,9 +256,9 @@ export default function History() {
   };
   
   return (
-    <div className="max-w-3xl @container mx-auto bg-level1 text-black p-5">
+    <div className="max-w-3xl @container flex flex-col h-full overflow-y-auto mx-auto bg-level1 text-black p-5">
       <header className="flex justify-between items-center mb-5">
-        <h1 className="text-2xl font-bold text-level6 m-0">Memozy</h1>
+        <h1 className="text-3xl font-bold text-level6 m-0">Memozy</h1>
         <div className="flex gap-2.5">
           {savedItems.length > 0 && (
             <button 
@@ -325,14 +310,9 @@ export default function History() {
       
       {/* 빈 상태 */}
       {!loading && savedItems.length === 0 && (
-        <div className="text-center py-16 text-gray">
-          <h3 className="mb-2 text-level5 font-semibold">저장된 캡처 아이템이 없습니다</h3>
-          <p className="mb-5 text-gray">텍스트를 드래그하거나 이미지를 클릭하여 캡처해보세요.</p>
-          <button 
-            className="bg-main text-white py-2 px-4 rounded hover:bg-blue-700 transition-colors text-sm font-medium"
-            onClick={() => window.close()}>
-            확장 프로그램으로 돌아가기
-          </button>
+        <div className="flex flex-col h-full items-center justify-center py-16 text-gray">
+          <h3 className="flex mb-2 text-level5 text-2xl font-semibold">캡처한 데이터가 없습니다</h3>
+          <p className="flex mb-5 text-xl text-gray">텍스트를 드래그하거나 이미지를 클릭하여 캡처해보세요.</p>
         </div>
       )}
       
@@ -345,14 +325,14 @@ export default function History() {
       )}
       
       {/* 타이틀별로 그룹화된 아이템 목록 */}
-      {!loading && Object.entries(groupedItems).map(([title, items]) => (
-        <div key={title} className="mb-4 bg-white rounded-lg shadow overflow-hidden">
+      {!loading && Object.entries(groupedItems).map(([title, {title: groupTitle, items}]) => (
+        <div key={title} className="mb-4 bg-white rounded-lg shadow">
           <div 
             className="flex justify-between items-center p-3 bg-gray-100 border-b border-light-gray cursor-pointer"
           >
-            <h3 className="m-0 text-base font-semibold text-black flex items-center">
-              <span onClick={() => toggleGroup(title)} className="cursor-pointer line-clamp-1">
-                {title}
+            <h3 onClick={() => toggleGroup(title)} className="w-full m-0 text-base font-semibold text-black flex items-center">
+              <span className="cursor-pointer line-clamp-1">
+                {groupTitle}
                 <span className="ml-2 text-sm font-normal text-gray">({items.length})</span>
               </span>
             </h3>
@@ -364,14 +344,14 @@ export default function History() {
                 }`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (!summarizingUrls[items[0].pageUrl]) {
+                  if (!summarizingUrls[title]) {
                     handleCreateSummary(items[0]);
                   }
                 }}
-                disabled={summarizingUrls[items[0].pageUrl]}
+                disabled={summarizingUrls[title]}
                 title={items[0].summaryId ? "요약 보기" : "요약 요청"}
               >
-                {summarizingUrls[items[0].pageUrl] ? '요약 중...' : (items[0].summaryId ? '📋 요약 보기' : '📋 요약 요청')}
+                {summarizingUrls[title] ? '요약 중...' : (items[0].summaryId ? '📋 요약 보기' : '📋 요약 요청')}
               </button>
 
               {/* 문제 만들기 버튼 */}
@@ -379,20 +359,20 @@ export default function History() {
                 className={`text-xs py-1 px-2 w-[88px] rounded transition-all ${
                   items[0].problemId 
                     ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 cursor-pointer' 
-                    : (items[0].summaryId && !creatingProblemsUrls[items[0].pageUrl]) 
+                    : (items[0].summaryId && !creatingProblemsUrls[title]) 
                       ? 'hover:bg-gray-200 cursor-pointer' 
                       : 'text-gray-400 cursor-not-allowed'
                 }`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (!creatingProblemsUrls[items[0].pageUrl]) {
+                  if (!creatingProblemsUrls[title]) {
                     handleCreateProblem(items[0]);
                   }
                 }}
-                disabled={(!items[0].summaryId && !items[0].problemId) || creatingProblemsUrls[items[0].pageUrl]}
+                disabled={(!items[0].summaryId && !items[0].problemId) || creatingProblemsUrls[title]}
                 title={items[0].problemId ? "문제 보기" : (!items[0].summaryId ? "요약 후 문제 생성 가능" : "문제 만들기")}
               >
-                {creatingProblemsUrls[items[0].pageUrl] 
+                {creatingProblemsUrls[title] 
                   ? '생성 중...' 
                   : (items[0].problemId 
                     ? '📝 문제 보기' 
@@ -413,19 +393,19 @@ export default function History() {
 
               {/* 접기/펼치기 버튼 */}
               <button 
-                className="bg-transparent py-1 px-2 border-0 text-gray text-base hover:bg-gray-200 cursor-pointer"
+                className="bg-transparent w-[30px] py-1 px-2 border-0 text-gray text-base hover:bg-gray-200 cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleGroup(title);
                 }}
               >
-                {expandedGroups[title] ? '▼' : '◀'}
+                {expandedGroups === title ? '▼' : '◀'}
               </button>
             </div>
           </div>
           
-          {expandedGroups[title] && (
-            <div className="p-4">
+          {expandedGroups === title && (
+            <div className="p-4 overflow-y-auto">
               {items.map(item => (
                 <CapturedItemCard
                   key={item.id}
