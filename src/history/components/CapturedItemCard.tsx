@@ -1,7 +1,7 @@
 import { CapturedItem, ImageContent } from '../../types';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface CapturedItemCardProps {
   item: CapturedItem;
@@ -75,10 +75,9 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
                     return match ? (
                       <div className="rounded-md overflow-hidden my-4">
                         <SyntaxHighlighter
-                          style={oneDark}
+                          style={oneLight}
                           language={match[1]}
                           showLineNumbers={true}
-                          wrapLongLines={true}
                           PreTag="div"
                           {...syntaxProps}
                         >
