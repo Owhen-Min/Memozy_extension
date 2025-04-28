@@ -18,7 +18,7 @@
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
     "@vitejs/plugin-react": "^4.4.1",
-    "@wrtnlabs/web-content-extractor": "^1.0.3",
+    "@wrtnlabs/web-content-extractor": "^3.2.4",
     "axios": "^1.8.4",
     "postcss": "^8.5.3",
     "react": "^19.1.0",

@@ -1,7 +1,7 @@
 import { CapturedItem, ImageContent } from '../../types';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface CapturedItemCardProps {
   item: CapturedItem;
@@ -67,14 +67,20 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
                 components={{
                   // 코드 블록 커스텀 렌더링
                   code({ node, className, children, ...props }) {
-                    const match = /language-(\w+)/.exec(className || '');
+                    const match = /language-(\w+)/.exec((className || '').trim());
+                    console.log(match);
+                    // Don't pass DOM element props to SyntaxHighlighter component
+                    const { ref, ...syntaxProps } = props as any;
+                    
                     return match ? (
                       <div className="rounded-md overflow-hidden my-4">
                         <SyntaxHighlighter
-                          style={vscDarkPlus as any}
+                          style={oneDark}
                           language={match[1]}
+                          showLineNumbers={true}
+                          wrapLongLines={true}
                           PreTag="div"
-                          {...props}
+                          {...syntaxProps}
                         >
                           {String(children).replace(/\n$/, '')}
                         </SyntaxHighlighter>

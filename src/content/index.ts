@@ -177,15 +177,12 @@ document.addEventListener('mouseup', async (e) => {
     tempDiv.appendChild(fragment);
     const htmlContent = tempDiv.innerHTML;
     
-    // HTML에서 텍스트 추출
-    const extractedText = await extractContent(htmlContent);
-    
     // HTML과 추출된 텍스트 모두 저장
     try {
       await sendMessageToBackground({
         action: 'contentCaptured',
         type: 'text',
-        content: extractedText,
+        content: htmlContent,
         meta: {
           format: 'plain',
           originalType: 'html'
@@ -449,7 +446,8 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
     }
     
     const turndownService = new TurndownService();
-    const extractedText = turndownService.turndown(html);
+    const { contentHtmls } = await extractContent(html);
+    const extractedText = turndownService.turndown(contentHtmls.join(''));
     
     await sendMessageToBackground({
       action: 'contentCaptured',
