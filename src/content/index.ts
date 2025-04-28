@@ -458,10 +458,10 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
       fence: '```'
     });
 
-    // 코드 블록을 처리하는 규칙 수정
+    // 코드 블록 처리를 위한 단일 규칙으로 통합
     turndownService.addRule('codeblock', {
       filter: function(node) {
-        // code 태그 처리
+        // code 태그 체크
         if (node.nodeName === 'CODE') {
           const className = (node as HTMLElement).getAttribute('class');
           if (className && (className.includes('language-') || className.includes('hljs'))) {
@@ -469,67 +469,30 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
           }
         }
         
-        // pre 태그 처리
+        // pre 태그 체크
         if (node.nodeName === 'PRE') {
-          // pre 태그 자체에 클래스가 있는 경우
-          const className = (node as HTMLElement).getAttribute('class');
-          if (className && (className.includes('language-') || className.includes('hljs'))) {
-            return true;
-          }
-          
-          // pre 안에 code 태그가 있고 그 태그에 클래스가 있는 경우
-          const codeElement = (node as HTMLElement).querySelector('code');
-          if (codeElement && codeElement.getAttribute('class')) {
-            return false; // pre 안의 code는 별도로 처리할 것이므로 여기서는 건너뜀
-          }
+          return true; // 모든 pre 태그 처리
         }
         
         return false;
       },
       replacement: function(content, node) {
-        // 코드 콘텐츠와 언어 추출 함수
-        const extractCodeInfo = (element: HTMLElement) => {
-          let codeElement: HTMLElement | null = null;
-          let languageClass = '';
-          
-          // 현재 노드가 code인 경우
-          if (element.nodeName === 'CODE') {
-            codeElement = element;
-            languageClass = element.getAttribute('class') || '';
-          }
-          // 현재 노드가 pre인 경우
-          else if (element.nodeName === 'PRE') {
-            // pre 태그 자체에 언어 클래스가 있는 경우
-            languageClass = element.getAttribute('class') || '';
-            
-            // pre 안에 code 태그가 있는 경우
-            const innerCode = element.querySelector('code');
-            if (innerCode) {
-              codeElement = innerCode;
-              // code 태그에 클래스가 있으면 그것을 우선 사용
-              const codeClass = innerCode.getAttribute('class');
-              if (codeClass) {
-                languageClass = codeClass;
-              }
-            } else {
-              codeElement = element;
-            }
-          }
-          
-          return { codeElement, languageClass };
-        };
+        // 디버깅을 위한 로그
+        console.log('Processing node:', node.nodeName);
         
         // 언어 추출 함수
         const getHighlightLanguage = (className: string): string => {
-          // language- 형식 먼저 시도
+          if (!className) return 'plaintext';
+          
+          // language- 패턴 확인
           const languageMatch = className.match(/language-(\w+)/);
           if (languageMatch) return languageMatch[1];
           
-          // hljs 형식 시도
+          // hljs 패턴 확인
           const hljsMatch = className.match(/hljs\s+(\w+)/);
           if (hljsMatch) return hljsMatch[1];
           
-          // 언어 이름이 직접 포함된 경우
+          // 다른 언어 패턴 확인
           if (className.includes('cpp') || className.includes('C++')) return 'cpp';
           if (className.includes('csharp') || className.includes('C#')) return 'csharp';
           if (className.includes('python') || className.includes('Python')) return 'python';
@@ -542,53 +505,55 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
           if (className.includes('rust') || className.includes('Rust')) return 'rust';
           if (className.includes('c') && !className.includes('cpp')) return 'c';
           
-          // 단순 hljs만 있는 경우 javascript로 가정
-          if (className.includes('hljs')) return 'javascript';
-          
           return 'plaintext';
         };
         
-        // 코드 정보 추출
-        const { codeElement, languageClass } = extractCodeInfo(node as HTMLElement);
-        const language = getHighlightLanguage(languageClass);
+        // 코드와 언어 클래스 추출
+        let codeElement = node as HTMLElement;
+        let languageClass = codeElement.getAttribute('class') || '';
         
-        // 코드 콘텐츠 추출
-        let codeHtml = '';
-        if (codeElement) {
-          codeHtml = codeElement.innerHTML;
-        } else {
-          codeHtml = (node as HTMLElement).innerHTML;
+        // pre 태그인 경우 내부 code 태그 찾기
+        if (node.nodeName === 'PRE') {
+          const innerCode = (node as HTMLElement).querySelector('code');
+          if (innerCode) {
+            codeElement = innerCode;
+            const innerClass = innerCode.getAttribute('class');
+            if (innerClass) {
+              languageClass = innerClass;
+            }
+          }
         }
         
-        // HTML 엔티티 디코딩 및 줄바꿈 처리
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = codeHtml
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
-          .replace(/&amp;/g, '&');
+        // 언어 결정
+        const language = getHighlightLanguage(languageClass);
+        console.log('Detected language:', language);
         
-        let codeText = tempDiv.textContent || '';
+        // 원본 텍스트 추출 (innerHTML이 아닌 textContent 사용)
+        let codeText = codeElement.textContent || '';
+        console.log('Original code length:', codeText.length);
+        
+        if (codeText.length === 0) {
+          // innerHTML에서 직접 텍스트 추출 시도
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = codeElement.innerHTML
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&amp;/g, '&');
+          codeText = tempDiv.textContent || '';
+          console.log('Extracted from innerHTML:', codeText.length);
+        }
+        
+        // 코드가 여전히 비어있으면 원본 content 사용
+        if (codeText.length === 0) {
+          codeText = content;
+          console.log('Using original content:', content.length);
+        }
+        
+        // 줄바꿈 정규화
         codeText = codeText.replace(/\r\n/g, '\n');
         
-        // 코드 줄 처리
-        const codeLines = codeText.split('\n');
-        
-        return '\n\n```' + language + '\n' + codeLines.join('\n') + '\n```\n\n';
-      }
-    });
-    
-    // pre 내부의 code를 처리하는 규칙 추가
-    turndownService.addRule('pre-with-code', {
-      filter: function(node) {
-        if (node.nodeName !== 'PRE') return false;
-        
-        const codeElement = (node as HTMLElement).querySelector('code');
-        return !!codeElement && !!codeElement.getAttribute('class');
-      },
-      replacement: function(content, node) {
-        // 내부 code 태그는 위의 codeblock 규칙에서 처리될 것이므로
-        // 여기서는 빈 문자열 반환
-        return '';
+        // 결과 반환
+        return '\n\n```' + language + '\n' + codeText + '\n```\n\n';
       }
     });
 
