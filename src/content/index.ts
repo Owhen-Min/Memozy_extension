@@ -367,7 +367,8 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
     const errorMessages: { [key: string]: string } = {
       'blog.naver.com': '네이버 블로그 글 안에서 캡처 버튼을 눌러주세요.',
       'velog.io': '벨로그 글 안에서 캡처 버튼을 눌러주세요.',
-      'tistory': '티스토리 글에서 캡처 버튼을 눌러주세요.'
+      'tistory': '티스토리 글에서 캡처 버튼을 눌러주세요.',
+      'brunch' : '브런치 글에서 캡처 버튼을 눌러주세요.'
     };
     
     // 사이트별 HTML 컨텐츠 추출 로직
@@ -413,7 +414,12 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
       if (content) {
         html = content.outerHTML;
       }
-    } else {
+    } else if (hostname == 'brunch.co.kr') {
+      const content = document.querySelector('.wrap_view_article');
+      if (content) {
+        html = content.outerHTML;
+      }
+    } else{
       // 일반 페이지는 전체 HTML 저장
       const doctype = document.doctype ? 
         new XMLSerializer().serializeToString(document.doctype) : '';
