@@ -8,7 +8,7 @@ interface ToggleProps {
 const Toggle: React.FC<ToggleProps> = ({ label, checked, onChange, disabled = false }) => {
   return (
     <div className="flex items-center justify-between gap-2.5 my-1.5">
-      <span>{label}</span>
+      <span className="text-gray font-bold">{label}</span>
       <label className="relative inline-block w-[50px] h-6">
         <input 
           type="checkbox" 

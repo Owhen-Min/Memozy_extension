@@ -1,6 +1,9 @@
 import { Message, CapturedItem } from '../types';
 import { extractContent } from '@wrtnlabs/web-content-extractor';
 import TurndownService from 'turndown';
+import { tablePlugin } from '../utils/tablePlugin';
+import { codeBlockPlugin } from '../utils/codeBlockPlugin';
+
 
 console.log('드래그 & 저장 콘텐츠 스크립트 로드됨');
 
@@ -364,12 +367,6 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
   try {
     let html: string | null = null;
     const hostname = window.location.hostname;
-    const errorMessages: { [key: string]: string } = {
-      'blog.naver.com': '네이버 블로그 글 안에서 캡처 버튼을 눌러주세요.',
-      'velog.io': '벨로그 글 안에서 캡처 버튼을 눌러주세요.',
-      'tistory': '티스토리 글에서 캡처 버튼을 눌러주세요.',
-      'brunch' : '브런치 글에서 캡처 버튼을 눌러주세요.'
-    };
     
     // 사이트별 HTML 컨텐츠 추출 로직
     if (hostname === 'blog.naver.com') {
@@ -401,16 +398,20 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
         } catch (error) {
           console.error('네이버 블로그 iframe 처리 오류:', error);
         }
+      } else {
+        return { success: false, error: '네이버 블로그 글 안에서 저장 버튼을 눌러주세요.' };
       }
     } else if (hostname === 'velog.io') {
       const content = document.querySelector('.atom-one');
       if (content) {
         console.log('velog 컨텐츠 저장 시작');
         html = content.outerHTML;
+      } else {
+        return { success: false, error: '벨로그 글 안에서 저장 버튼을 눌러주세요.' };
       }
     } else if (hostname.endsWith('.tistory.com')) {
       console.log('티스토리 블로그 페이지 저장 시작');
-      const content = document.querySelector('.entry-content');
+      const content = document.querySelector('.tt_article_useless_p_margin');
       if (content) {
         html = content.outerHTML;
       }
@@ -418,27 +419,29 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
       const content = document.querySelector('.wrap_view_article');
       if (content) {
         html = content.outerHTML;
+      } else {
+        return { success: false, error: '브런치 글 안에서 저장 버튼을 눌러주세요.' };
       }
-    } 
+    } else if (hostname == 'chatgpt.com' || hostname == 'perplexity.ai' ) {
+      const contents = document.querySelectorAll('.prose');
+      if (contents) {
+        html = Array.from(contents).map(content => content.outerHTML).join('\n\n');
+      } else {
+        return { success: false, error: '오류가 발생했습니다. 드래그로 콘텐츠를 선택해주세요.' };
+      }
+    }
 
     if (!html) {
       // 일반 페이지는 전체 HTML 저장
       const doctype = document.doctype ? 
         new XMLSerializer().serializeToString(document.doctype) : '';
-      html = doctype + document.documentElement.outerHTML;
+      const { contentHtmls } = await extractContent(doctype + document.documentElement.outerHTML);
+      html = contentHtmls.join('');
     }
     
     // HTML 추출 실패 시 에러 반환
     if (!html) {
       let errorMsg = '콘텐츠를 찾을 수 없습니다.';
-      
-      // 해당 사이트에 맞는 에러 메시지 찾기
-      for (const key in errorMessages) {
-        if (hostname === key || hostname.endsWith(`.${key}`)) {
-          errorMsg = errorMessages[key];
-          break;
-        }
-      }
       
       showNotification({
         id: 0,
@@ -453,114 +456,11 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
       return { success: false, error: errorMsg };
     }
     
-    const turndownService = new TurndownService({
-      codeBlockStyle: 'fenced',
-      fence: '```'
-    });
+    const turndownService = new TurndownService({});
+    turndownService.use(tablePlugin);
+    turndownService.use(codeBlockPlugin);
 
-    // 코드 블록 처리를 위한 단일 규칙으로 통합
-    turndownService.addRule('codeblock', {
-      filter: function(node) {
-        // code 태그 체크
-        if (node.nodeName === 'CODE') {
-          const className = (node as HTMLElement).getAttribute('class');
-          if (className && (className.includes('language-') || className.includes('hljs'))) {
-            return true;
-          }
-        }
-        
-        // pre 태그 체크
-        if (node.nodeName === 'PRE') {
-          return true; // 모든 pre 태그 처리
-        }
-        
-        return false;
-      },
-      replacement: function(content, node) {
-        // 디버깅을 위한 로그
-        console.log('Processing node:', node.nodeName);
-        
-        // 언어 추출 함수
-        const getHighlightLanguage = (className: string): string => {
-          if (!className) return 'plaintext';
-          
-          // language- 패턴 확인
-          const languageMatch = className.match(/language-(\w+)/);
-          if (languageMatch) return languageMatch[1];
-          
-          // hljs 패턴 확인
-          const hljsMatch = className.match(/hljs\s+(\w+)/);
-          if (hljsMatch) return hljsMatch[1];
-          
-          // 다른 언어 패턴 확인
-          if (className.includes('cpp') || className.includes('C++')) return 'cpp';
-          if (className.includes('csharp') || className.includes('C#')) return 'csharp';
-          if (className.includes('python') || className.includes('Python')) return 'python';
-          if (className.includes('javascript') || className.includes('JavaScript') || className.includes('js')) return 'javascript';
-          if (className.includes('java') || className.includes('Java')) return 'java';
-          if (className.includes('ruby') || className.includes('Ruby')) return 'ruby';
-          if (className.includes('go') || className.includes('Go')) return 'go';
-          if (className.includes('swift') || className.includes('Swift')) return 'swift';
-          if (className.includes('kotlin') || className.includes('Kotlin')) return 'kotlin';
-          if (className.includes('rust') || className.includes('Rust')) return 'rust';
-          if (className.includes('c') && !className.includes('cpp')) return 'c';
-          
-          return 'plaintext';
-        };
-        
-        // 코드와 언어 클래스 추출
-        let codeElement = node as HTMLElement;
-        let languageClass = codeElement.getAttribute('class') || '';
-        
-        // pre 태그인 경우 내부 code 태그 찾기
-        if (node.nodeName === 'PRE') {
-          const innerCode = (node as HTMLElement).querySelector('code');
-          if (innerCode) {
-            codeElement = innerCode;
-            const innerClass = innerCode.getAttribute('class');
-            if (innerClass) {
-              languageClass = innerClass;
-            }
-          }
-        }
-        
-        // 언어 결정
-        const language = getHighlightLanguage(languageClass);
-        console.log('Detected language:', language);
-        
-        // 원본 텍스트 추출 (innerHTML이 아닌 textContent 사용)
-        let codeText = codeElement.textContent || '';
-        console.log('Original code length:', codeText.length);
-        
-        if (codeText.length === 0) {
-          // innerHTML에서 직접 텍스트 추출 시도
-          const tempDiv = document.createElement('div');
-          tempDiv.innerHTML = codeElement.innerHTML
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>')
-            .replace(/&amp;/g, '&');
-          codeText = tempDiv.textContent || '';
-          console.log('Extracted from innerHTML:', codeText.length);
-        }
-        
-        // 코드가 여전히 비어있으면 원본 content 사용
-        if (codeText.length === 0) {
-          codeText = content;
-          console.log('Using original content:', content.length);
-        }
-        
-        // 줄바꿈 정규화
-        codeText = codeText.replace(/\r\n/g, '\n');
-        
-        // 결과 반환
-        return '\n\n```' + language + '\n' + codeText + '\n```\n\n';
-      }
-    });
-
-    const { contentHtmls } = await extractContent(html);
-    console.log(contentHtmls);
-    const extractedText = turndownService.turndown(contentHtmls.join(''));
-    console.log(extractedText);
+    const extractedText = turndownService.turndown(html);
     await sendMessageToBackground({
       action: 'contentCaptured',
       type: 'text',
@@ -572,9 +472,7 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
       }
     });
     
-    console.log('HTML 텍스트 추출 및 저장 성공');
     return { success: true };
-    
   } catch (error: any) {
     console.error('HTML 저장 중 오류:', error);
     return { success: false, error: error.message || 'HTML 저장 중 오류가 발생했습니다' };

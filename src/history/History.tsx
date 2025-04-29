@@ -92,6 +92,19 @@ export default function History() {
     }
   };
   
+  // URL별 아이템 삭제 처리
+  const handleDeleteUrlGroup = async (pageUrl: string) => {
+    if (window.confirm('모든 내용을 삭제하시겠습니까?')) {
+      try {
+        const updatedItems = savedItems.filter(item => item.pageUrl !== pageUrl);
+        await chrome.storage.local.set({ savedItems: updatedItems });
+        setSavedItems(updatedItems);
+      } catch (error) {
+        console.error('그룹 삭제 오류:', error);
+      }
+    }
+  };
+  
   // 아이템 다운로드 처리
   const handleDownload = async (item: CapturedItem) => {
     try {
@@ -284,7 +297,6 @@ export default function History() {
             <option value="all">모든 타입</option>
             <option value="text">텍스트</option>
             <option value="image">이미지</option>
-            <option value="html">HTML</option>
           </select>
           
           <div className="flex-1 min-w-[200px]">
@@ -339,7 +351,7 @@ export default function History() {
             <div className="flex items-center gap-1">
               {/* 요약 기능 버튼 */}
               <button 
-                className={`ml-2 text-xs w-[88px] py-1 px-2 rounded cursor-pointer transition-all ${
+                className={`ml-2 text-xs w-11 h-15 py-1  rounded cursor-pointer transition-all ${
                   items[0].summaryId ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'hover:bg-gray-200'
                 }`}
                 onClick={(e) => {
@@ -351,12 +363,12 @@ export default function History() {
                 disabled={summarizingUrls[title]}
                 title={items[0].summaryId ? "요약 보기" : "요약 요청"}
               >
-                {summarizingUrls[title] ? '요약 중...' : (items[0].summaryId ? '📋 요약 보기' : '📋 요약 요청')}
+                {summarizingUrls[title] ? <span className="text-gray-400 text-sm">요약 중...</span> : <span className="text-xl">📋 <span className="text-base">요약</span></span>}
               </button>
 
               {/* 문제 만들기 버튼 */}
               <button 
-                className={`text-xs py-1 px-2 w-[88px] rounded transition-all ${
+                className={`text-xs py-1 w-11 h-15 rounded transition-all ${
                   items[0].problemId 
                     ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 cursor-pointer' 
                     : (items[0].summaryId && !creatingProblemsUrls[title]) 
@@ -373,27 +385,37 @@ export default function History() {
                 title={items[0].problemId ? "문제 보기" : (!items[0].summaryId ? "요약 후 문제 생성 가능" : "문제 만들기")}
               >
                 {creatingProblemsUrls[title] 
-                  ? '생성 중...' 
-                  : (items[0].problemId 
-                    ? '📝 문제 보기' 
-                    : '📝 문제 요청')}
+                  ? <span className="text-gray-400 text-sm">생성 중...</span> 
+                  : <span className="text-xl">📝 <span className="text-base">문제</span></span> }
               </button>
 
               {/* 원본 링크 버튼 */}
               <button 
-                className="text-xs py-1 px-2 w-[60px] rounded hover:bg-gray-200 cursor-pointer transition-all"
+                className="text-xs py-1 w-11 h-15 rounded hover:bg-gray-200 cursor-pointer transition-all"
                 onClick={(e) => {
                   e.stopPropagation();
                   window.open(items[0].pageUrl);
                 }}
                 title="원본 페이지로 이동"
               >
-                🔗 링크
+                <span className="text-xl">🔗<br/><span className="text-base">링크</span></span>
+              </button>
+
+              {/* URL 그룹 삭제 버튼 */}
+              <button 
+                className="text-xs py-1 w-11 h-15 rounded hover:bg-red-200 text-red-700 cursor-pointer transition-all"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteUrlGroup(title);
+                }}
+                title="이 URL의 모든 항목 삭제"
+              >
+                <span className="text-xl">🗑️<br/><span className="text-base">삭제</span></span>
               </button>
 
               {/* 접기/펼치기 버튼 */}
               <button 
-                className="bg-transparent w-[30px] py-1 px-2 border-0 text-gray text-base hover:bg-gray-200 cursor-pointer"
+                className="bg-transparent w-11 h-15 py-1 border-0 text-gray text-base hover:bg-gray-200 cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleGroup(title);
@@ -405,16 +427,18 @@ export default function History() {
           </div>
           
           {expandedGroups === title && (
-            <div className="p-4 overflow-y-auto">
-              {items.map(item => (
-                <CapturedItemCard
-                  key={item.id}
-                  item={item}
-                  onDelete={handleDelete}
-                  onDownload={handleDownload}
-                  showUrl={false}
-                />
-              ))}
+            <div className="p-4">
+              <div className="overflow-y-auto max-h-[calc(100vh-200px)]">
+                {items.map(item => (
+                  <CapturedItemCard
+                    key={item.id}
+                    item={item}
+                    onDelete={handleDelete}
+                    onDownload={handleDownload}
+                    showUrl={false}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </div>

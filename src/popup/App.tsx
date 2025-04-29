@@ -46,7 +46,7 @@ export default function App() {
 
   return (
     <div className="w-full flex flex-col gap-4 bg-level1 text-level6 p-4 text-base">
-      <h1 className="text-2xl font-bold text-main m-0">자료 저장</h1>
+      <h1 className="text-2xl font-extrabold text-main m-0">Memozy</h1>
       
       <Toggle 
         label="텍스트와 이미지 캡처" 
@@ -55,8 +55,8 @@ export default function App() {
         disabled={loading}
       />
       
-      <div className="text-sm text-gray leading-relaxed">
-        활성화 하면 <span className="font-bold text-level5">드래그한 텍스트</span>또는 <span className="font-bold text-level5">이미지</span>가 자동으로 캡처됩니다.
+      <div className="text-gray leading-relaxed">
+        활성화 하면 <span className="font-bold text-level5">드래그한 텍스트</span> 또는 <span className="font-bold text-level5">이미지</span>가<br/>자동으로 캡처됩니다.
       </div>
       
       <button 
