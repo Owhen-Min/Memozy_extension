@@ -6,6 +6,58 @@ import '../Global.css';
 import { useNavigate } from 'react-router-dom';
 import CreateProblemModal, { ProblemCreationData } from './components/CreateProblemModal';
 
+// --- Helper functions for DOM path comparison ---
+
+// Extracts :nth-of-type(N) value from a selector part
+function extractNthOfTypeValue(selectorPart: string): number | null {
+    const match = selectorPart.match(/:nth-of-type\((\d+)\)$/);
+    if (match && match[1]) {
+        return parseInt(match[1], 10);
+    }
+    // Handle cases like #id or tag without nth-of-type (assume 1st)
+    if (!selectorPart.includes(':nth-of-type')) {
+        return 1; 
+    }
+    return null; // Other complex selectors or errors
+}
+
+// Compares two DOM paths
+function compareDomPaths(pathA: string | undefined, pathB: string | undefined): number {
+    if (!pathA && !pathB) return 0; // Both missing
+    if (!pathA) return 1;         // A missing, B comes first
+    if (!pathB) return -1;        // B missing, A comes first
+
+    const partsA = pathA.split(' > ');
+    const partsB = pathB.split(' > ');
+    const len = Math.min(partsA.length, partsB.length);
+
+    for (let i = 0; i < len; i++) {
+        if (partsA[i] === partsB[i]) continue; // Same part, check next level
+
+        // Parts differ, try comparing nth-of-type
+        const nthA = extractNthOfTypeValue(partsA[i]);
+        const nthB = extractNthOfTypeValue(partsB[i]);
+
+        if (nthA !== null && nthB !== null && nthA !== nthB) {
+            return nthA - nthB; // Compare based on N value
+        }
+
+        // If nth-of-type is same or not comparable, 
+        // consider them structurally different at this level.
+        // We could fall back to alphabetical sort of the differing part 
+        // or just treat as equal for now to avoid overcomplication.
+        // For simplicity, returning 0 here might group unrelated siblings.
+        // Let's try alphabetical comparison as a fallback.
+        return partsA[i].localeCompare(partsB[i]);
+    }
+
+    // One path is a prefix of the other (parent/child)
+    // Shorter path (parent) comes first
+    return partsA.length - partsB.length;
+}
+
+// --- End Helper functions ---
+
 export default function History() {
   const [savedItems, setSavedItems] = useState<CapturedItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,23 +76,68 @@ export default function History() {
       setLoading(true);
       try {
         const result = await chrome.storage.local.get(['savedItems']);
-        const items = result.savedItems || [];
+        const items = (result.savedItems || []) as CapturedItem[]; // Add type assertion
         
-        // 날짜순 정렬 (최신순)
-        const sortedItems = items.sort((a: CapturedItem, b: CapturedItem) => {
-          const dateA = new Date(a.timestamp).getTime();
-          const dateB = new Date(b.timestamp).getTime();
-          
-          // 유효하지 않은 날짜는 가장 앞으로
-          if (isNaN(dateA) && isNaN(dateB)) return 0;
-          if (isNaN(dateA)) return 1;
-          if (isNaN(dateB)) return -1;
-          
-          return dateB - dateA;
+        // Group items by URL first
+        const itemsByUrl: { [url: string]: CapturedItem[] } = {};
+        items.forEach(item => {
+          if (!itemsByUrl[item.pageUrl]) {
+            itemsByUrl[item.pageUrl] = [];
+          }
+          itemsByUrl[item.pageUrl].push(item);
         });
-        setSavedItems(sortedItems);
+
+        // Sort items within each group by DOM path, then combine
+        let sortedItems: CapturedItem[] = [];
+        Object.values(itemsByUrl).forEach(group => {
+          const sortedGroup = group.sort((a, b) => {
+            // Handle items without domPath (put them first or last)
+            const pathA = a.meta?.domPath;
+            const pathB = b.meta?.domPath;
+            if (!pathA && !pathB) return 0; // Both missing, keep original order relative to each other
+            if (!pathA) return -1;       // A missing, comes first
+            if (!pathB) return 1;        // B missing, comes last
+            
+            // Use the comparison function
+            return compareDomPaths(pathA, pathB);
+          });
+          sortedItems = sortedItems.concat(sortedGroup);
+        });
+
+        // Now sort the groups themselves by the timestamp of the *first* item in each sorted group (latest group first)
+        // Or keep a fixed order based on URL if preferred. Let's sort groups by latest timestamp for now.
+        const finalGroupedItems: { [url: string]: { title: string, items: CapturedItem[] } } = {};
+        sortedItems.forEach(item => {
+            const url = item.pageUrl;
+            if (!finalGroupedItems[url]) {
+                finalGroupedItems[url] = {
+                    title: item.pageTitle || url,
+                    items: []
+                };
+            }
+            finalGroupedItems[url].items.push(item);
+        });
+
+        // Sort the keys (URLs) based on the timestamp of the first item in each group (latest first)
+        const sortedUrls = Object.keys(finalGroupedItems).sort((urlA, urlB) => {
+            const firstItemA = finalGroupedItems[urlA].items[0];
+            const firstItemB = finalGroupedItems[urlB].items[0];
+            const timeA = firstItemA ? new Date(firstItemA.timestamp).getTime() : 0;
+            const timeB = firstItemB ? new Date(firstItemB.timestamp).getTime() : 0;
+            // Handle invalid dates
+            if (isNaN(timeA) && isNaN(timeB)) return 0;
+            if (isNaN(timeA)) return 1;
+            if (isNaN(timeB)) return -1;
+            return timeB - timeA; // Descending order (latest group first)
+        });
+
+        // Reconstruct sorted savedItems array based on sorted URL groups
+        const finalSortedItems = sortedUrls.flatMap(url => finalGroupedItems[url].items);
+
+        setSavedItems(finalSortedItems);
+
       } catch (error) {
-        console.error('아이템 로드 오류:', error);
+        console.error('아이템 로드/정렬 오류:', error);
       } finally {
         setLoading(false);
       }
@@ -51,14 +148,8 @@ export default function History() {
     // 스토리지 변경 감지
     const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }) => {
       if (changes.savedItems) {
-        const newItems = changes.savedItems.newValue || [];
-        setSavedItems(newItems);
-        
-        // 새 아이템이 있지만 확장된 그룹이 없으면 첫 번째 그룹 확장
-        if (expandedGroups === '' && newItems.length > 0) {
-          const firstTitle = newItems[0]?.pageTitle || '제목 없음';
-          setExpandedGroups(firstTitle);
-        }
+        // Reload and re-sort items when storage changes
+        loadItems(); 
       }
     };
     
@@ -121,7 +212,7 @@ export default function History() {
     }
   };
   
-  // 필터링된 아이템
+  // 필터링된 아이템 (이제 savedItems는 이미 정렬된 상태)
   const filteredItems = savedItems.filter(item => {
     // 타입 필터
     if (filter !== 'all' && item.type !== filter) {
@@ -154,19 +245,31 @@ export default function History() {
     return true;
   });
   
-  // url별로 아이템 그룹화
-  const groupedItems: {[url: string]: {title: string, items: CapturedItem[]}} = {};
+  // url별로 아이템 그룹화 (for display - items within groups are already sorted)
+  const groupedItemsForDisplay: {[url: string]: {title: string, items: CapturedItem[]}} = {};
   filteredItems.forEach(item => {
     const url = item.pageUrl;
-    if (!groupedItems[url]) {
-      groupedItems[url] = {
+    if (!groupedItemsForDisplay[url]) {
+      groupedItemsForDisplay[url] = {
         title: item.pageTitle || url,
         items: []
       };
     }
-    groupedItems[url].items.push(item);
+    groupedItemsForDisplay[url].items.push(item);
   });
-  
+
+   // Get sorted URLs for rendering based on the original sorting (latest group first)
+   // We need to respect the order derived from sorting by the first item's timestamp
+   const displayOrderUrls = Object.keys(groupedItemsForDisplay).sort((urlA, urlB) => {
+        const firstItemTimestamp = (url: string): number => {
+            const firstItem = savedItems.find(item => item.pageUrl === url); // Find first item in original sorted list
+            if (!firstItem) return 0;
+            const time = new Date(firstItem.timestamp).getTime();
+            return isNaN(time) ? 0 : time;
+        };
+        return firstItemTimestamp(urlB) - firstItemTimestamp(urlA); // Descending
+    });
+
   // 그룹 접기/펼치기 토글 함수
   const toggleGroup = (title: string) => {
     setExpandedGroups(prev => prev === title ? '' : title);
@@ -336,113 +439,101 @@ export default function History() {
         </div>
       )}
       
-      {/* 타이틀별로 그룹화된 아이템 목록 */}
-      {!loading && Object.entries(groupedItems).map(([title, {title: groupTitle, items}]) => (
-        <div key={title} className="mb-4 bg-white rounded-lg shadow">
-          <div 
-            className="flex justify-between items-center p-3 bg-gray-100 border-b border-light-gray cursor-pointer"
-          >
-            <h3 onClick={() => toggleGroup(title)} className="w-full m-0 text-base font-semibold text-black flex items-center">
-              <span className="cursor-pointer line-clamp-1">
-                {groupTitle}
-                <span className="ml-2 text-sm font-normal text-gray">({items.length})</span>
-              </span>
-            </h3>
-            <div className="flex items-center gap-1">
-              {/* 요약 기능 버튼 */}
-              <button 
-                className={`ml-2 text-xs w-11 h-15 py-1  rounded cursor-pointer transition-all ${
-                  items[0].summaryId ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'hover:bg-gray-200'
-                }`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!summarizingUrls[title]) {
-                    handleCreateSummary(items[0]);
-                  }
-                }}
-                disabled={summarizingUrls[title]}
-                title={items[0].summaryId ? "요약 보기" : "요약 요청"}
-              >
-                {summarizingUrls[title] ? <span className="text-gray-400 text-sm">요약 중...</span> : <span className="text-xl">📋 <span className="text-base">요약</span></span>}
-              </button>
+      {/* 타이틀별로 그룹화된 아이템 목록 (use displayOrderUrls) */}
+      {!loading && displayOrderUrls.map(url => {
+        const { title: groupTitle, items } = groupedItemsForDisplay[url];
+        // Filter might remove all items from a group, check if items exist
+        if (!items || items.length === 0) return null;
 
-              {/* 문제 만들기 버튼 */}
-              <button 
-                className={`text-xs py-1 w-11 h-15 rounded transition-all ${
-                  items[0].problemId 
-                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 cursor-pointer' 
-                    : (items[0].summaryId && !creatingProblemsUrls[title]) 
-                      ? 'hover:bg-gray-200 cursor-pointer' 
-                      : 'text-gray-400 cursor-not-allowed'
-                }`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!creatingProblemsUrls[title]) {
-                    handleCreateProblem(items[0]);
-                  }
-                }}
-                disabled={(!items[0].summaryId && !items[0].problemId) || creatingProblemsUrls[title]}
-                title={items[0].problemId ? "문제 보기" : (!items[0].summaryId ? "요약 후 문제 생성 가능" : "문제 만들기")}
-              >
-                {creatingProblemsUrls[title] 
-                  ? <span className="text-gray-400 text-sm">생성 중...</span> 
-                  : <span className="text-xl">📝 <span className="text-base">문제</span></span> }
-              </button>
+        return (
+          <div key={url} className="mb-4 bg-white rounded-lg shadow">
+            <div 
+              className="flex justify-between items-center p-3 bg-gray-100 border-b border-light-gray cursor-pointer"
+            >
+              <h3 onClick={() => toggleGroup(url)} className="w-full m-0 text-base font-semibold text-black flex items-center">
+                <span className="cursor-pointer line-clamp-1">
+                  {groupTitle}
+                  <span className="ml-2 text-sm font-normal text-gray">({items.length})</span>
+                </span>
+              </h3>
+              <div className="flex items-center gap-1">
+                  {/* Buttons using items[0] for summary/problem/link/delete group */} 
+                  {/* 요약 기능 버튼 */} 
+                  <button 
+                    className={`ml-2 text-xs w-11 h-15 py-1  rounded cursor-pointer transition-all ${
+                      items[0].summaryId ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'hover:bg-gray-200'
+                    }`}
+                    onClick={(e) => { e.stopPropagation(); if (!summarizingUrls[url]) handleCreateSummary(items[0]); }}
+                    disabled={summarizingUrls[url]}
+                    title={items[0].summaryId ? "요약 보기" : "요약 요청"}
+                  >
+                    {summarizingUrls[url] ? <span className="text-gray-400 text-sm">요약 중...</span> : <span className="text-xl">📋 <span className="text-base">요약</span></span>}
+                  </button>
 
-              {/* 원본 링크 버튼 */}
-              <button 
-                className="text-xs py-1 w-11 h-15 rounded hover:bg-gray-200 cursor-pointer transition-all"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  window.open(items[0].pageUrl);
-                }}
-                title="원본 페이지로 이동"
-              >
-                <span className="text-xl">🔗<br/><span className="text-base">링크</span></span>
-              </button>
+                  {/* 문제 만들기 버튼 */} 
+                  <button 
+                    className={`text-xs py-1 w-11 h-15 rounded transition-all ${
+                      items[0].problemId 
+                        ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 cursor-pointer' 
+                        : (items[0].summaryId && !creatingProblemsUrls[url]) 
+                          ? 'hover:bg-gray-200 cursor-pointer' 
+                          : 'text-gray-400 cursor-not-allowed'
+                    }`}
+                    onClick={(e) => { e.stopPropagation(); if (!creatingProblemsUrls[url]) handleCreateProblem(items[0]); }}
+                    disabled={(!items[0]?.summaryId && !items[0]?.problemId) || creatingProblemsUrls[url]}
+                    title={items[0].problemId ? "문제 보기" : (!items[0].summaryId ? "요약 후 문제 생성 가능" : "문제 만들기")}
+                  >
+                    {creatingProblemsUrls[url] 
+                      ? <span className="text-gray-400 text-sm">생성 중...</span> 
+                      : <span className="text-xl">📝 <span className="text-base">문제</span></span> }
+                  </button>
 
-              {/* URL 그룹 삭제 버튼 */}
-              <button 
-                className="text-xs py-1 w-11 h-15 rounded hover:bg-red-200 text-red-700 cursor-pointer transition-all"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteUrlGroup(title);
-                }}
-                title="이 URL의 모든 항목 삭제"
-              >
-                <span className="text-xl">🗑️<br/><span className="text-base">삭제</span></span>
-              </button>
+                  {/* 원본 링크 버튼 */} 
+                  <button 
+                    className="text-xs py-1 w-11 h-15 rounded hover:bg-gray-200 cursor-pointer transition-all"
+                    onClick={(e) => { e.stopPropagation(); window.open(items[0].pageUrl); }}
+                    title="원본 페이지로 이동"
+                  >
+                    <span className="text-xl">🔗<br/><span className="text-base">링크</span></span>
+                  </button>
 
-              {/* 접기/펼치기 버튼 */}
-              <button 
-                className="bg-transparent w-11 h-15 py-1 border-0 text-gray text-base hover:bg-gray-200 cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleGroup(title);
-                }}
-              >
-                {expandedGroups === title ? '▼' : '◀'}
-              </button>
-            </div>
-          </div>
-          
-          {expandedGroups === title && (
-            <div className="p-4">
-              <div className="overflow-y-auto max-h-[calc(100vh-200px)]">
-                {items.map(item => (
-                  <CapturedItemCard
-                    key={item.id}
-                    item={item}
-                    onDelete={handleDelete}
-                    onDownload={handleDownload}
-                    showUrl={false}
-                  />
-                ))}
+                  {/* URL 그룹 삭제 버튼 */} 
+                  <button 
+                    className="text-xs py-1 w-11 h-15 rounded hover:bg-red-200 text-red-700 cursor-pointer transition-all"
+                    onClick={(e) => { e.stopPropagation(); handleDeleteUrlGroup(url); }}
+                    title="이 URL의 모든 항목 삭제"
+                  >
+                    <span className="text-xl">🗑️<br/><span className="text-base">삭제</span></span>
+                  </button>
+
+                  {/* 접기/펼치기 버튼 */} 
+                  <button 
+                    className="bg-transparent w-11 h-15 py-1 border-0 text-gray text-base hover:bg-gray-200 cursor-pointer"
+                    onClick={(e) => { e.stopPropagation(); toggleGroup(url); }}
+                  >
+                    {expandedGroups === url ? '▼' : '◀'}
+                  </button>
               </div>
             </div>
-          )}
-        </div>
-      ))}
+            
+            {expandedGroups === url && (
+              <div className="p-4">
+                <div className="overflow-y-auto max-h-[calc(100vh-200px)]">
+                  {items.map(item => ( // items are already sorted by DOM path
+                    <CapturedItemCard
+                      key={item.id}
+                      item={item}
+                      onDelete={handleDelete}
+                      onDownload={handleDownload}
+                      showUrl={false} // URL is shown in group header
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
       
       {selectedItemForProblem && (
         <CreateProblemModal

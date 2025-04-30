@@ -15,10 +15,19 @@ export function codeBlockPlugin(turndownService: TurndownService) {
         // 언어 추출 - 다양한 방법 시도
         let language = 'plaintext';
         
-        // 1. div에 있는 언어 정보 확인
+        // 1. data-language 속성 확인
         const preElement = node as HTMLElement;
+        const codeElement = preElement.querySelector('code');
+        if (codeElement) {
+          const dataLanguage = codeElement.getAttribute('data-language');
+          if (dataLanguage) {
+            language = dataLanguage.toLowerCase();
+          }
+        }
+        
+        // 2. div에 있는 언어 정보 확인
         const languageDiv = preElement.querySelector('div');
-        if (languageDiv && languageDiv.textContent) {
+        if (languageDiv && languageDiv.textContent && language === 'plaintext') {
           const langText = languageDiv.textContent.trim().toLowerCase();
           if (langText.match(/^(python|javascript|java|cpp|c\+\+|c#|ruby|go|swift|kotlin|rust|c)$/)) {
             language = langText;
@@ -28,10 +37,8 @@ export function codeBlockPlugin(turndownService: TurndownService) {
           }
         }
         
-        // 2. 클래스에서 언어 정보 추출
-        const codeElement = preElement.querySelector('code');
-        
-        if (codeElement) {
+        // 3. 클래스에서 언어 정보 추출
+        if (codeElement && language === 'plaintext') {
           const className = codeElement.getAttribute('class') || '';
           
           // language- 패턴 확인
@@ -100,8 +107,8 @@ export function codeBlockPlugin(turndownService: TurndownService) {
       } catch (error) {
         console.error('코드 블록 처리 오류:', error);
         // 오류 발생 시 원본 컨텐츠 반환
-        return '\n\n```\n' + content + '\n```\n\n';
-      }
+        return '\n```\n' + content + '\n```\n';
+      }``
     }
   });
 } 

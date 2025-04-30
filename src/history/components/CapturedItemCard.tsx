@@ -4,6 +4,9 @@ import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useState, useEffect, useRef } from 'react';
+import TurndownService from 'turndown';
+import { tablePlugin } from '../../utils/tablePlugin';
+import { codeBlockPlugin } from '../../utils/codeBlockPlugin';
 
 interface CapturedItemCardProps {
   item: CapturedItem;
@@ -20,6 +23,11 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
 }) => {
   const [showScrollButton, setShowScrollButton] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+
+  // Instantiate TurndownService within the component or globally if preferred
+  const turndownService = new TurndownService({});
+  turndownService.use(tablePlugin);
+  turndownService.use(codeBlockPlugin);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -73,28 +81,27 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
   };
   
   
-  // 추출된 콘텐츠 렌더링
-  const renderExtractedContent = () => {
-    if (!item.meta?.extractedContent) return null;
-    
-    const { content } = item.meta.extractedContent;
-    
-    if (!content) return null;
-    
-    return (
-      <div className="extracted-content">
-        <h4>추출된 콘텐츠</h4>
-        <div className="content-section">
-          <div className="content-text">{content}</div>
-        </div>
-      </div>
-    );
-  };
-  
+   
   // 내용 렌더링
   const renderContent = () => {
     switch (item.type) {
       case 'text':
+      case 'html': // Also handle 'html' type if it exists
+        let markdownContent = '';
+        if (typeof item.content === 'string') {
+            try {
+                // Convert HTML content to Markdown on the fly
+                markdownContent = turndownService.turndown(item.content);
+            } catch (error) {
+                console.error("Error converting HTML to Markdown in Card:", error);
+                // Fallback: Display raw HTML within a code block or similar
+                // For simplicity, just show an error message or the raw HTML
+                markdownContent = `\`\`\`html\n${item.content}\n\`\`\``; // Show raw HTML in code block as fallback
+            }
+        } else {
+            markdownContent = "콘텐츠 형식이 올바르지 않습니다.";
+        }
+        
         return (
           <div className="card-content text-sm">
             <div className="prose prose-slate dark:prose-invert max-w-none overflow-auto">
@@ -171,7 +178,7 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
                   }
                 }}
               >
-                {item.content as string}
+                {markdownContent}
               </ReactMarkdown>
             </div>
           </div>

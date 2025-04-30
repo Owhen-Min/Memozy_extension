@@ -23,6 +23,8 @@ export interface MetaData {
   extractedContent?: {
     content?: string;
   };
+  domPath?: string;
+  originalHtml?: string;
 }
 
 // 캡처된 아이템 인터페이스
@@ -84,6 +86,9 @@ export interface Response {
   itemId?: number;
   downloadId?: number;
   extractedContent?: any;
+  html?: string;
+  status?: 'ok' | 'skipped_duplicate' | 'item_updated' | 'error';
+  message?: string;
 }
 
 // 스토리지 상태 인터페이스

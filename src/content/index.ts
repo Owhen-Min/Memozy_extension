@@ -1,9 +1,11 @@
-import { Message, CapturedItem } from '../types';
+import { Message, CapturedItem, Response as ExtensionResponse } from '../types';
 import { extractContent } from '@wrtnlabs/web-content-extractor';
-import TurndownService from 'turndown';
-import { tablePlugin } from '../utils/tablePlugin';
-import { codeBlockPlugin } from '../utils/codeBlockPlugin';
 
+// NotificationMessage 타입 정의 추가
+type NotificationMessage = { 
+    type: 'info' | 'warning' | 'error'; 
+    message: string 
+};
 
 console.log('드래그 & 저장 콘텐츠 스크립트 로드됨');
 
@@ -34,22 +36,29 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // 안전한 메시지 전송 함수
-const sendMessageToBackground = (message: Message): Promise<any> => {
+const sendMessageToBackground = (message: Message): Promise<ExtensionResponse> => {
   return new Promise((resolve, reject) => {
+    console.log('[Content Script] sendMessageToBackground 호출됨:', message.action);
     try {
-      chrome.runtime.sendMessage(message, (response) => {
+      chrome.runtime.sendMessage(message, (response: ExtensionResponse | undefined) => {
+        console.log('[Content Script] sendMessage 콜백 실행됨:', message.action, response);
         if (chrome.runtime.lastError) {
-          console.error('메시지 전송 오류:', chrome.runtime.lastError);
+          console.error('[Content Script] 메시지 전송 오류:', chrome.runtime.lastError.message);
           reject(chrome.runtime.lastError);
-        } else if (response && !response.success) {
-          console.error('메시지 응답 실패:', response.error);
+        } else if (response === undefined) {
+          console.error('[Content Script] 백그라운드 응답 없음 (undefined)');
+          reject(new Error('백그라운드 응답 없음'));
+        } else if (!response.success) {
+          console.error('[Content Script] 메시지 응답 실패:', response.error);
           reject(new Error(response.error || '알 수 없는 오류'));
         } else {
+          console.log('[Content Script] 메시지 응답 성공:', response);
           resolve(response);
         }
       });
+      console.log('[Content Script] chrome.runtime.sendMessage 호출 완료 (비동기 콜백 대기)');
     } catch (error) {
-      console.error('메시지 전송 중 예외 발생:', error);
+      console.error('[Content Script] 메시지 전송 중 예외 발생:', error);
       reject(error);
     }
   });
@@ -152,6 +161,51 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
   return true; // 비동기 응답을 위해 true 반환
 });
 
+// 요소의 고유한 CSS 선택자 경로 생성 함수
+function getDomPath(node: Node): string {
+  let element: Element | null = null;
+
+  // 노드가 Element 타입이면 바로 사용, 아니면 부모 Element를 찾음
+  if (node.nodeType === Node.ELEMENT_NODE) {
+    element = node as Element;
+  } else if (node.parentElement) {
+    element = node.parentElement;
+  }
+
+  // 유효한 Element를 찾지 못하면 빈 문자열 반환
+  if (!element) return '';
+
+  const path: string[] = [];
+  let currentElement: Element | null = element;
+
+  while (currentElement && currentElement.nodeType === Node.ELEMENT_NODE) {
+    let selector = currentElement.nodeName.toLowerCase();
+    if (currentElement.id) {
+      // ID가 있으면 #id 사용하고 경로 생성 종료
+      selector += `#${CSS.escape(currentElement.id)}`; // CSS.escape로 특수 문자 처리
+      path.unshift(selector);
+      break;
+    } else {
+      // ID가 없으면 형제 요소 중 순서 계산 (nth-of-type)
+      let sibling = currentElement;
+      let nth = 1;
+      // previousElementSibling으로 같은 타입의 형제만 카운트
+      while ((sibling = sibling.previousElementSibling!) != null) {
+        if (sibling.nodeName.toLowerCase() === selector) nth++;
+      }
+      // 첫 번째 요소가 아니면 :nth-of-type 추가
+      if (nth != 1) {
+        selector += `:nth-of-type(${nth})`;
+      }
+    }
+    path.unshift(selector);
+    // 부모 요소로 이동
+    currentElement = currentElement.parentElement;
+  }
+  // 배열을 ' > '로 연결하여 최종 경로 반환
+  return path.join(' > ');
+}
+
 // 드래그 이벤트 처리 수정
 document.addEventListener('mouseup', async (e) => {
   if (!isCapturing) return;
@@ -179,21 +233,26 @@ document.addEventListener('mouseup', async (e) => {
     const tempDiv = document.createElement('div');
     tempDiv.appendChild(fragment);
     const htmlContent = tempDiv.innerHTML;
+
+    // 선택된 범위의 시작점(commonAncestorContainer)을 기준으로 DOM 경로 생성
+    const commonAncestor = range.commonAncestorContainer;
+    const domPath = getDomPath(commonAncestor);
+    console.log('DOM 경로:', domPath);
     
-    // HTML과 추출된 텍스트 모두 저장
+    // Send only HTML to background
     try {
       await sendMessageToBackground({
         action: 'contentCaptured',
         type: 'text',
-        content: htmlContent,
+        content: htmlContent, // Only original HTML
         meta: {
-          format: 'plain',
-          originalType: 'html'
+          originalType: 'html',
+          domPath: domPath
         }
       });
-      console.log('HTML 텍스트 추출 및 저장 성공');
+      console.log('HTML 텍스트 추출 및 저장 요청 성공 (DOM 경로 포함)');
     } catch (error) {
-      console.error('텍스트 저장 실패:', error);
+      console.error('텍스트 저장 요청 실패:', error);
     }
   } catch (error) {
     console.error('텍스트 처리 오류:', error);
@@ -266,100 +325,80 @@ document.addEventListener('dragstart', async (e) => {
 });
 
 // 알림 표시 함수
-function showNotification(item: CapturedItem) {
-  try {
-    // 이미 알림 컨테이너가 있는지 확인
+// showNotification 함수 수정 (메시지 타입 처리 추가)
+function showNotification(itemOrMessage: CapturedItem | NotificationMessage) {
     let container = document.getElementById('drag-save-notification-container');
-    
-    // 없으면 생성
     if (!container) {
-      container = document.createElement('div');
-      container.id = 'drag-save-notification-container';
-      
-      // 스타일 적용
-      Object.assign(container.style, {
-        position: 'fixed',
-        bottom: '20px',
-        right: '20px',
-        zIndex: '99999',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'flex-end',
-        gap: '10px',
-        maxWidth: '300px'
-      });
-      
-      document.body.appendChild(container);
+        container = document.createElement('div');
+        container.id = 'drag-save-notification-container';
+        Object.assign(container.style, { 
+            position: 'fixed', bottom: '20px', right: '20px', zIndex: '99999',
+            display: 'flex', flexDirection: 'column', alignItems: 'flex-end',
+            gap: '10px', maxWidth: '300px' 
+         });
+        document.body.appendChild(container);
     }
-    
-    // 알림 요소 생성
+
     const notification = document.createElement('div');
-    
-    // 아이템 타입별 알림 내용 설정
     let message = '';
     let bgColor = '';
-    
-    switch (item.type) {
-      case 'text':
-        message = '텍스트가 저장되었습니다.';
-        bgColor = 'linear-gradient(135deg, #4CAF50, #388E3C)';
-        break;
-      case 'image':
-        message = '이미지가 저장되었습니다.';
-        bgColor = 'linear-gradient(135deg, #2196F3, #1976D2)';
-        break;
-      case 'error':
-        message = item.meta?.errorMessage || '새로고침 후 시도해주세요.';
-        bgColor = 'linear-gradient(135deg, #FF9800, #F57C00)';
-        break;
-      default:
-        message = '콘텐츠가 저장되었습니다.';
-        bgColor = 'linear-gradient(135deg, #9C27B0, #7B1FA2)';
+    let isError = false;
+
+    if ('message' in itemOrMessage) {
+        // NotificationMessage 타입
+        message = itemOrMessage.message;
+        switch (itemOrMessage.type) {
+            case 'info':
+                bgColor = 'linear-gradient(135deg, #607D8B, #455A64)';
+                break;
+            case 'warning':
+                bgColor = 'linear-gradient(135deg, #FFC107, #FFA000)';
+                break;
+            case 'error':
+                bgColor = 'linear-gradient(135deg, #F44336, #D32F2F)';
+                isError = true;
+                break;
+            default:
+                bgColor = 'linear-gradient(135deg, #607D8B, #455A64)';
+        }
+    } else {
+        // CapturedItem 타입
+        switch (itemOrMessage.type) {
+            case 'text':
+                message = '텍스트가 저장되었습니다.';
+                bgColor = 'linear-gradient(135deg, #4CAF50, #388E3C)';
+                break;
+            case 'image':
+                message = '이미지가 저장되었습니다.';
+                bgColor = 'linear-gradient(135deg, #2196F3, #1976D2)';
+                break;
+            case 'error':
+                message = itemOrMessage.meta?.errorMessage || '알 수 없는 오류로 저장되었습니다.';
+                bgColor = 'linear-gradient(135deg, #F44336, #D32F2F)';
+                isError = true;
+                break;
+            default:
+                message = '콘텐츠가 저장되었습니다.';
+                bgColor = 'linear-gradient(135deg, #9C27B0, #7B1FA2)';
+        }
     }
-    
-    // 알림 스타일 적용
-    Object.assign(notification.style, {
-      padding: '12px 16px',
-      background: bgColor,
-      color: 'white',
-      borderRadius: '8px',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-      marginBottom: '10px',
-      fontSize: '14px',
-      fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      fontWeight: '500',
-      opacity: '0',
-      transform: 'translateX(20px)',
-      transition: 'opacity 0.3s ease, transform 0.3s ease',
-      position: 'relative',
-      maxWidth: '100%'
-    });
-    
-    // 알림 내용 설정
+
+    Object.assign(notification.style, { 
+        padding: '12px 16px', background: bgColor, color: 'white',
+        borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        marginBottom: '10px', fontSize: '14px',
+        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        fontWeight: '500', opacity: '0', transform: 'translateX(20px)',
+        transition: 'opacity 0.3s ease, transform 0.3s ease', position: 'relative', maxWidth: '100%'
+     });
     notification.textContent = message;
-    
-    // 컨테이너에 추가
     container.appendChild(notification);
-    
-    // 애니메이션 효과 (브라우저 렌더링 사이클을 고려해 약간의 딜레이 적용)
-    setTimeout(() => {
-      notification.style.opacity = '1';
-      notification.style.transform = 'translateX(0)';
-    }, 10);
-    
-    // 3초 후 알림 제거
-    setTimeout(() => {
-      notification.style.opacity = '0';
-      notification.style.transform = 'translateX(20px)';
-      
-      // 제거 애니메이션 완료 후 DOM에서 실제 제거
-      setTimeout(() => {
-        notification.remove();
-      }, 300);
-    }, 3000);
-  } catch (error) {
-    console.error('알림 생성 오류:', error);
-  }
+
+    setTimeout(() => { notification.style.opacity = '1'; notification.style.transform = 'translateX(0)'; }, 10);
+    setTimeout(() => { 
+        notification.style.opacity = '0'; notification.style.transform = 'translateX(20px)';
+        setTimeout(() => { notification.remove(); }, 300);
+     }, isError ? 5000 : 3000); // 에러는 5초, 나머지는 3초
 }
 
 // 현재 페이지의 HTML 저장 후 텍스트 추출
@@ -429,52 +468,99 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
       } else {
         return { success: false, error: '오류가 발생했습니다. 드래그로 콘텐츠를 선택해주세요.' };
       }
+    } else if (hostname == 'namu.wiki') {
+      const rootContents = document.querySelectorAll('div[data-v-d16cf66c]');
+      if (rootContents && rootContents.length > 0) {
+        // 가장 안쪽의 콘텐츠만 수집하는 함수
+        const getInnermostContents = (element: Element): Element[] => {
+          // 현재 요소의 직계 자식들 가져오기
+          const directChildren = Array.from(element.children);
+          
+          // 직계 자식들이 모두 data-v-d16cf66c를 가진 div인지 확인
+          const hasOnlyDataVDivs = directChildren.some(
+            child => child.tagName === 'DIV' && child.hasAttribute('data-v-d16cf66c')
+          );
+          
+          return hasOnlyDataVDivs ? [] : [element];
+        };
+        
+        // 모든 루트 요소들에 대해 가장 안쪽 콘텐츠 수집
+        const contents = Array.from(rootContents)
+          .flatMap(root => getInnermostContents(root))
+          .map(content => content.outerHTML);
+        
+        const rawHtml = contents.join('\n\n');
+        const { contentHtmls } = await extractContent(rawHtml);
+        html = contentHtmls.join('');
+      } else {
+        return { success: false, error: '나무위키 글 안에서 저장 버튼을 눌러주세요.' };
+      }
     }
 
     if (!html) {
-      // 일반 페이지는 전체 HTML 저장
-      const doctype = document.doctype ? 
-        new XMLSerializer().serializeToString(document.doctype) : '';
-      const { contentHtmls } = await extractContent(doctype + document.documentElement.outerHTML);
-      html = contentHtmls.join('');
+      console.log('일반 페이지 전체 HTML 저장 시도');
+      try {
+          const doctype = document.doctype ? new XMLSerializer().serializeToString(document.doctype) : '';
+          html = doctype + document.documentElement.outerHTML; 
+          console.log('전체 document HTML을 사용합니다.');
+      } catch (extractError) {
+             console.error("HTML 추출 중 오류:", extractError);
+             html = document.documentElement.outerHTML;
+             if (!html) {
+               showNotification({
+                  id: 0, type: 'error', pageTitle: '', pageUrl: '',
+                  timestamp: new Date(), content: '', meta: { errorMessage: 'HTML 콘텐츠를 추출할 수 없습니다.' }
+                });
+               return { success: false, error: 'HTML 콘텐츠를 추출할 수 없습니다.' };
+             }
+      }
     }
     
-    // HTML 추출 실패 시 에러 반환
     if (!html) {
       let errorMsg = '콘텐츠를 찾을 수 없습니다.';
-      
       showNotification({
-        id: 0,
-        type: 'error',
-        pageTitle: '',
-        pageUrl: '',
-        timestamp: new Date(),
-        content: '',
-        meta: { errorMessage: errorMsg }
+        id: 0, type: 'error', pageTitle: '', pageUrl: '',
+        timestamp: new Date(), content: '', meta: { errorMessage: errorMsg }
       });
-      
       return { success: false, error: errorMsg };
     }
-    
-    const turndownService = new TurndownService({});
-    turndownService.use(tablePlugin);
-    turndownService.use(codeBlockPlugin);
 
-    const extractedText = turndownService.turndown(html);
-    await sendMessageToBackground({
+    console.log('Original HTML 추출 완료, 백그라운드로 전송');
+    console.log('Original HTML length:', html.length);
+
+    // Send only HTML to background
+    const response: ExtensionResponse = await sendMessageToBackground({
       action: 'contentCaptured',
       type: 'text',
-      content: extractedText,
-      meta: {
-        format: 'plain',
-        originalType: 'html',
-        saveType: 'full'
-      }
+      content: html, // Only original HTML
+      meta: { originalType: 'html', saveType: 'full' }
     });
-    
-    return { success: true };
+
+    // 응답 처리 및 알림 표시 (옵셔널 체이닝 사용)
+    if (response && response.success) { // response 존재 및 success 확인
+        if (response.status === 'skipped_duplicate' && response.message) {
+            // 중복 건너뛰기 알림 (정보)
+            showNotification({ type: 'info', message: response.message });
+        } else if (response.status === 'item_updated' && response.message) {
+            // 업데이트 완료 알림 (경고/주황색 스타일)
+            showNotification({ type: 'warning', message: response.message });
+        } else if (response.status === 'ok') {
+             console.log("새 항목 저장 요청 성공 (백그라운드 처리 대기)");
+        }
+        // savingComplete 메시지는 background에서 별도로 보내므로 여기서 성공 알림을 직접 띄우지 않음
+        return { success: true }; // 작업 요청 자체는 성공
+
+    } else {
+        // 실패 응답 처리 (옵셔널 체이닝 사용)
+        const errorMsg = response?.error || '알 수 없는 오류로 저장에 실패했습니다.';
+        showNotification({ type: 'error', message: errorMsg });
+        return { success: false, error: errorMsg };
+    }
+
   } catch (error: any) {
+    // sendMessageToBackground 자체에서 reject된 경우
     console.error('HTML 저장 중 오류:', error);
+    showNotification({ type: 'error', message: error.message || 'HTML 저장 중 오류 발생' });
     return { success: false, error: error.message || 'HTML 저장 중 오류가 발생했습니다' };
   }
 }
