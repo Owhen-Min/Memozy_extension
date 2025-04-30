@@ -11,6 +11,9 @@ export interface ImageContent {
   name: string;
 }
 
+// 병합 전략 타입 정의
+export type MergeAction = 'replace' | 'append' | 'prepend' | 'none';
+
 // 메타데이터 인터페이스
 export interface MetaData {
   format?: string;
@@ -18,6 +21,7 @@ export interface MetaData {
   iframeIndex?: number;
   combinedContent?: boolean;
   merged?: boolean;
+  lastMergeTimestamp?: string;
   originalType?: string;
   errorMessage?: string;
   extractedContent?: {

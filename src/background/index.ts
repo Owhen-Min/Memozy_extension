@@ -1,6 +1,6 @@
 import { DiffDOM } from 'diff-dom';
 import * as htmlparser from 'htmlparser2';
-import { CapturedItem, Message, Response } from '../types';
+import { CapturedItem, MergeAction, Message, Response } from '../types';
 import { Node as HtmlParserNode, DataNode, Element as HtmlParserElement } from 'domhandler';
 
 // diff-dom 타입 직접 정의 (간소화 버전)
@@ -194,6 +194,71 @@ function compareNthOfTypeValues(path1: string | undefined, path2: string | undef
     return values1.length - values2.length;
 }
 
+// 병합 전략 결정 함수
+function determineMergeStrategy(
+  newPath: string | undefined,
+  existingPath: string | undefined,
+  newContentLength: number,
+  existingContentLength: number,
+  diff: any[]
+): MergeAction {
+  const relationship = getDomPathRelationship(newPath, existingPath);
+
+  switch (relationship) {
+    case 'same':
+      return diff.length > 0 ? 'replace' : 'none';
+    case 'parent':
+      return newContentLength > existingContentLength ? 'replace' : 'none';
+    case 'sibling':
+      const comparison = compareNthOfTypeValues(newPath, existingPath);
+      if (comparison > 0) return 'append';
+      if (comparison < 0) return 'prepend';
+      return 'append';  // 동일한 위치면 기본적으로 append
+    case 'unrelated':
+      return (newContentLength > existingContentLength && diff.length > 0) ? 'replace' : 'none';
+    default:
+      return 'none';
+  }
+}
+
+// 병합 실행 함수
+function mergeContent(
+  newItem: CapturedItem,
+  existingItem: CapturedItem,
+  action: MergeAction
+): CapturedItem {
+  const mergedItem = { ...existingItem };
+
+  switch (action) {
+    case 'replace':
+      mergedItem.content = newItem.content;
+      mergedItem.meta = {
+        ...mergedItem.meta,
+        domPath: newItem.meta?.domPath,
+        merged: true,
+        lastMergeTimestamp: new Date().toISOString()
+      };
+      break;
+
+    case 'append':
+    case 'prepend':
+      if (typeof mergedItem.content === 'string' && typeof newItem.content === 'string') {
+        mergedItem.content = action === 'append'
+          ? `${mergedItem.content}\n${newItem.content}`
+          : `${newItem.content}\n${mergedItem.content}`;
+        
+        mergedItem.meta = {
+          ...mergedItem.meta,
+          merged: true,
+          lastMergeTimestamp: new Date().toISOString()
+        };
+      }
+      break;
+  }
+
+  return mergedItem;
+}
+
 // 콘텐츠 스크립트에서 메시지 받기
 chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) => {
   console.log(`[Background] Received message: Action=${message?.action}, Sender=${sender?.tab?.id || 'N/A'}`);
@@ -316,56 +381,25 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
                                     if (diff.length <= MAX_DIFF_LENGTH) {
                                         isDuplicate = true;
                                         shouldSaveNew = false;
-                                        let updateAction: 'replace' | 'append' | 'prepend' | 'none' = 'none';
-                                        // ... determine updateAction (previous logic) ...
-                                        const relationship = getDomPathRelationship(newPath, existingPath);
-                                        if (relationship === 'same' && diff.length > 0) { updateAction = 'replace'; }
-                                        else if (relationship === 'parent' && newContentLength > existingContentLength) { updateAction = 'replace'; }
-                                        else if (relationship === 'sibling') {
-                                            const comparison = compareNthOfTypeValues(newPath, existingPath);
-                                            if (comparison > 0) {
-                                                updateAction = 'append';  // newPath가 더 뒤에 있음
-                                            } else if (comparison < 0) {
-                                                updateAction = 'prepend';  // newPath가 더 앞에 있음
-                                            } else {
-                                                updateAction = 'append';  // 동일한 위치면 기본적으로 append
-                                            }
-                                        }
-                                        else if (relationship === 'child') { updateAction = 'none'; }
-                                        else if (relationship === 'unrelated' && newContentLength > existingContentLength && diff.length > 0) { updateAction = 'replace'; }
-                                        else { updateAction = 'none'; }
-                                        // End determine updateAction
 
-                                        if (updateAction !== 'none') {
+                                        const mergeAction = determineMergeStrategy(
+                                          newPath,
+                                          existingPath,
+                                          newContentLength,
+                                          existingContentLength,
+                                          diff
+                                        );
+
+                                        if (mergeAction !== 'none') {
                                             const originalItemIndex = savedItems.findIndex(item => item.id === existingItem.id);
                                             if (originalItemIndex !== -1) {
-                                                let finalContent = savedItems[originalItemIndex].content as string;
-                                                let finalPath = savedItems[originalItemIndex].meta?.domPath;
-                                                
-                                                if (updateAction === 'replace') {
-                                                    finalContent = typeof newItem.content === 'string' ? newItem.content : ''; // Ensure string
-                                                    finalPath = newPath;
-                                                } else if (updateAction === 'append') {
-                                                    finalContent += '\\n' + (typeof newItem.content === 'string' ? newItem.content : '');
-                                                } else { // prepend
-                                                    finalContent = (typeof newItem.content === 'string' ? newItem.content : '') + '\\n' + finalContent;
-                                                    finalPath = newPath;
-                                                }
-                                                
-                                                // Update only content and meta
-                                                savedItems[originalItemIndex].content = finalContent;
-                                                savedItems[originalItemIndex].timestamp = new Date().toISOString();
-                                                savedItems[originalItemIndex].meta = { 
-                                                    ...savedItems[originalItemIndex].meta,
-                                                    domPath: finalPath,
-                                                    merged: (updateAction === 'append' || updateAction === 'prepend') ? true : savedItems[originalItemIndex].meta?.merged,
-                                                    format: 'html' // Always html now
-                                                };
+                                                const mergedItem = mergeContent(newItem, savedItems[originalItemIndex], mergeAction);
+                                                savedItems[originalItemIndex] = mergedItem;
                                                 itemUpdated = true;
                                                 updatedItemId = existingItem.id;
-                                                console.log(`Item ${updatedItemId} action: ${updateAction}`);
-                                            } else { console.error(`Cannot find item index ${existingItem.id}`); isDuplicate = false; shouldSaveNew = true; }
-                                        } else { console.log(`No update action for ${existingItem.id}`); }
+                                                console.log(`Item ${updatedItemId} action: ${mergeAction}`);
+                                            }
+                                        }
                                         break; 
                                     } // end if diff
                                 } // end if existingVNodes

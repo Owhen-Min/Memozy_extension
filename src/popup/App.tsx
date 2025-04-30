@@ -75,7 +75,7 @@ export default function App() {
 
   if (authLoading) {
     return (
-      <div className="w-72 flex flex-col items-center justify-center gap-4 bg-level1 text-level6 p-4 text-base min-h-[200px]">
+      <div className="w-[360px] flex flex-col items-center justify-center gap-4 bg-level1 text-level6 p-4 text-base min-h-[200px]">
         <h1 className="text-2xl font-extrabold text-main m-0">Memozy</h1>
          <div className="flex items-center justify-center gap-2 text-gray">
           <div className="w-4 h-4 border-2 border-gray/20 rounded-full border-t-main animate-spin"></div>
@@ -86,7 +86,7 @@ export default function App() {
   }
 
   return (
-    <div className="w-72 flex flex-col gap-4 bg-level1 text-level6 p-4 text-base">
+    <div className="w-[360px] flex flex-col gap-4 bg-level1 text-level6 p-4 text-base">
       <h1 className="text-2xl font-extrabold text-main m-0">Memozy</h1>
 
       {statusMessage && (
