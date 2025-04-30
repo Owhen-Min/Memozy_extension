@@ -53,17 +53,30 @@ function parseHtmlToVNodes(htmlString: string): (VNode | VText)[] {
   try {
     // 루트 요소로 감싸서 파싱해야 일관된 구조 얻기 용이
     const wrappedHtml = `<div>${htmlString}</div>`;
-    // parseDOM은 최상위 노드 배열을 반환
-    const dom = htmlparser.parseDOM(wrappedHtml, { recognizeSelfClosing: true });
+    // parseDOM 대신 parseDocument 사용
+    // parseDocument는 Document 노드를 반환
+    const document = htmlparser.parseDocument(wrappedHtml, { recognizeSelfClosing: true });
 
-    // 파싱된 DOM 구조 (보통 루트 div 하나) 를 VNode로 변환
-    if (dom && dom.length > 0 && dom[0].type === 'tag') {
-       const rootElement = dom[0] as HtmlParserElement;
-       // 루트 div의 자식들만 VNode로 변환하여 반환
-       return rootElement.children
+    // Document -> html -> body -> wrapper div -> target children
+    let targetChildren: HtmlParserNode[] = [];
+    const htmlElement = document.firstChild as HtmlParserElement | null;
+    if (htmlElement && htmlElement.type === 'tag' && htmlElement.name === 'html') {
+        const bodyElement = htmlElement.children.find(child => child.type === 'tag' && (child as HtmlParserElement).name === 'body') as HtmlParserElement | undefined;
+        if (bodyElement && bodyElement.children.length > 0) {
+             const wrapperDiv = bodyElement.firstChild as HtmlParserElement | null;
+             if (wrapperDiv && wrapperDiv.type === 'tag' && wrapperDiv.name === 'div') {
+                 targetChildren = wrapperDiv.children;
+             }
+        }
+    }
+
+    // 대상 자식 노드들을 VNode로 변환
+    if (targetChildren.length > 0) {
+        return targetChildren
             .map(child => convertNodeToVNode(child))
             .filter(child => child !== null) as (VNode | VText)[];
     }
+    
     return []; // 파싱 실패 또는 빈 HTML
   } catch (error) {
     console.error("HTML 파싱 오류:", error);
@@ -150,6 +163,35 @@ function extractNthOfTypeValue(path: string | undefined): number | null {
         return parseInt(match[1], 10);
     }
     return null; // ID 선택자거나 nth-of-type이 없는 경우
+}
+
+// DOM 경로의 모든 선택자에서 nth-of-type 값을 추출하는 함수
+function extractAllNthOfTypeValues(path: string | undefined): number[] {
+    if (!path) return [];
+    const parts = path.split(' > ');
+    
+    return parts.map(part => {
+        const match = part.match(/:nth-of-type\((\d+)\)$/);
+        return match && match[1] ? parseInt(match[1], 10) : 1;  // nth-of-type이 없으면 1로 간주
+    });
+}
+
+// 두 경로의 nth-of-type 값들을 비교하는 함수
+function compareNthOfTypeValues(path1: string | undefined, path2: string | undefined): number {
+    const values1 = extractAllNthOfTypeValues(path1);
+    const values2 = extractAllNthOfTypeValues(path2);
+    
+    // 더 짧은 배열의 길이만큼 비교
+    const minLength = Math.min(values1.length, values2.length);
+    
+    for (let i = 0; i < minLength; i++) {
+        if (values1[i] !== values2[i]) {
+            return values1[i] - values2[i];  // 양수면 path1이 더 뒤에, 음수면 path2가 더 뒤에 있음
+        }
+    }
+    
+    // 모든 값이 같다면 길이가 더 긴 쪽이 더 구체적인 경로
+    return values1.length - values2.length;
 }
 
 // 콘텐츠 스크립트에서 메시지 받기
@@ -279,14 +321,15 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
                                         const relationship = getDomPathRelationship(newPath, existingPath);
                                         if (relationship === 'same' && diff.length > 0) { updateAction = 'replace'; }
                                         else if (relationship === 'parent' && newContentLength > existingContentLength) { updateAction = 'replace'; }
-                                        else if (relationship === 'sibling' && diff.length > 0) { 
-                                            const newNth = extractNthOfTypeValue(newPath);
-                                            const existingNth = extractNthOfTypeValue(existingPath);
-                                            if (newNth !== null && existingNth !== null) {
-                                                if (newNth > existingNth) { updateAction = 'append'; }
-                                                else if (newNth < existingNth) { updateAction = 'prepend'; }
-                                                else { updateAction = 'append'; } 
-                                            } else { updateAction = 'append'; } 
+                                        else if (relationship === 'sibling') {
+                                            const comparison = compareNthOfTypeValues(newPath, existingPath);
+                                            if (comparison > 0) {
+                                                updateAction = 'append';  // newPath가 더 뒤에 있음
+                                            } else if (comparison < 0) {
+                                                updateAction = 'prepend';  // newPath가 더 앞에 있음
+                                            } else {
+                                                updateAction = 'append';  // 동일한 위치면 기본적으로 append
+                                            }
                                         }
                                         else if (relationship === 'child') { updateAction = 'none'; }
                                         else if (relationship === 'unrelated' && newContentLength > existingContentLength && diff.length > 0) { updateAction = 'replace'; }
@@ -359,11 +402,12 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
                      });
                 } else if (isDuplicate) {
                     console.log("[DEBUG] Action: Skipping duplicate item (HTML only)...");
-                    // 상태와 메시지 포함하여 응답
+                    // 상태와 메시지 포함하여 응답 (실패로 처리)
                     sendResponse({
-                        success: true, // 중복 검사 자체는 성공
+                        success: false, // 중복 저장은 실패로 간주
                         status: 'skipped_duplicate', // 건너뛰기 상태
-                        message: "유사한 항목이 이미 존재하여 저장하지 않았습니다." // 사용자 메시지
+                        error: "유사한 항목이 이미 존재하여 저장하지 않았습니다.", // 에러 메시지
+                        message: "유사한 항목이 이미 존재하여 저장하지 않았습니다." // 사용자 메시지 (선택적)
                     });
                 } else { // shouldSaveNew is true
                     console.log("[DEBUG] Action: Saving new item (HTML only)...");

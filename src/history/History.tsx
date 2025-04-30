@@ -5,6 +5,7 @@ import axios from 'axios';
 import '../Global.css';
 import { useNavigate } from 'react-router-dom';
 import CreateProblemModal, { ProblemCreationData } from './components/CreateProblemModal';
+import { useAuth } from '../hooks/useAuth';
 
 // --- Helper functions for DOM path comparison ---
 
@@ -59,6 +60,7 @@ function compareDomPaths(pathA: string | undefined, pathB: string | undefined): 
 // --- End Helper functions ---
 
 export default function History() {
+  const { isAuthenticated, authLoading, login } = useAuth();
   const [savedItems, setSavedItems] = useState<CapturedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<ItemType | 'all'>('all');
@@ -73,10 +75,12 @@ export default function History() {
   // 저장된 아이템 불러오기
   useEffect(() => {
     const loadItems = async () => {
+      if (loading || !isAuthenticated) return;
+
       setLoading(true);
       try {
         const result = await chrome.storage.local.get(['savedItems']);
-        const items = (result.savedItems || []) as CapturedItem[]; // Add type assertion
+        const items = (result.savedItems || []) as CapturedItem[];
         
         // Group items by URL first
         const itemsByUrl: { [url: string]: CapturedItem[] } = {};
@@ -91,14 +95,11 @@ export default function History() {
         let sortedItems: CapturedItem[] = [];
         Object.values(itemsByUrl).forEach(group => {
           const sortedGroup = group.sort((a, b) => {
-            // Handle items without domPath (put them first or last)
             const pathA = a.meta?.domPath;
             const pathB = b.meta?.domPath;
-            if (!pathA && !pathB) return 0; // Both missing, keep original order relative to each other
-            if (!pathA) return -1;       // A missing, comes first
-            if (!pathB) return 1;        // B missing, comes last
-            
-            // Use the comparison function
+            if (!pathA && !pathB) return 0;
+            if (!pathA) return -1;
+            if (!pathB) return 1;
             return compareDomPaths(pathA, pathB);
           });
           sortedItems = sortedItems.concat(sortedGroup);
@@ -143,13 +144,17 @@ export default function History() {
       }
     };
     
-    loadItems();
-    
+    if (!authLoading && isAuthenticated) {
+      loadItems();
+    } else if (!authLoading && !isAuthenticated) {
+        setLoading(false);
+        setSavedItems([]);
+    }
+
     // 스토리지 변경 감지
     const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }) => {
-      if (changes.savedItems) {
-        // Reload and re-sort items when storage changes
-        loadItems(); 
+      if (changes.savedItems && isAuthenticated) {
+        loadItems();
       }
     };
     
@@ -158,14 +163,13 @@ export default function History() {
     return () => {
       chrome.storage.onChanged.removeListener(handleStorageChange);
     };
-  }, []);
+  }, [authLoading, isAuthenticated]);
   
   // 아이템 삭제 처리
   const handleDelete = async (itemId: number) => {
     try {
       const updatedItems = savedItems.filter(item => item.id !== itemId);
       await chrome.storage.local.set({ savedItems: updatedItems });
-      setSavedItems(updatedItems);
     } catch (error) {
       console.error('아이템 삭제 오류:', error);
     }
@@ -176,7 +180,6 @@ export default function History() {
     if (window.confirm('모든 캡처 아이템을 삭제하시겠습니까?')) {
       try {
         await chrome.storage.local.set({ savedItems: [] });
-        setSavedItems([]);
       } catch (error) {
         console.error('모든 아이템 삭제 오류:', error);
       }
@@ -185,11 +188,15 @@ export default function History() {
   
   // URL별 아이템 삭제 처리
   const handleDeleteUrlGroup = async (pageUrl: string) => {
-    if (window.confirm('모든 내용을 삭제하시겠습니까?')) {
+    if (window.confirm(`'${groupedItemsForDisplay[pageUrl]?.title || pageUrl}' 그룹의 모든 내용을 삭제하시겠습니까?`)) {
       try {
-        const updatedItems = savedItems.filter(item => item.pageUrl !== pageUrl);
-        await chrome.storage.local.set({ savedItems: updatedItems });
-        setSavedItems(updatedItems);
+        const idsToDelete = savedItems.filter(item => item.pageUrl === pageUrl).map(item => item.id);
+        if (idsToDelete.length === 0) return;
+
+        const currentItemsResult = await chrome.storage.local.get(['savedItems']);
+        const itemsToKeep = (currentItemsResult.savedItems || []).filter((item: CapturedItem) => item.pageUrl !== pageUrl);
+
+        await chrome.storage.local.set({ savedItems: itemsToKeep });
       } catch (error) {
         console.error('그룹 삭제 오류:', error);
       }
@@ -206,9 +213,11 @@ export default function History() {
       
       if (!response || !response.success) {
         console.error('다운로드 실패:', response?.error || '알 수 없는 오류');
+        alert(`다운로드 실패: ${response?.error || '알 수 없는 오류'}`);
       }
     } catch (error) {
       console.error('다운로드 요청 오류:', error);
+      alert(`다운로드 요청 오류: ${error}`);
     }
   };
   
@@ -262,7 +271,7 @@ export default function History() {
    // We need to respect the order derived from sorting by the first item's timestamp
    const displayOrderUrls = Object.keys(groupedItemsForDisplay).sort((urlA, urlB) => {
         const firstItemTimestamp = (url: string): number => {
-            const firstItem = savedItems.find(item => item.pageUrl === url); // Find first item in original sorted list
+            const firstItem = savedItems.find(item => item.pageUrl === url);
             if (!firstItem) return 0;
             const time = new Date(firstItem.timestamp).getTime();
             return isNaN(time) ? 0 : time;
@@ -301,9 +310,6 @@ export default function History() {
       
       // 스토리지에 저장
       await chrome.storage.local.set({ savedItems: updatedItems });
-      setSavedItems(updatedItems);
-      
-      // 요약 생성 후 요약 보기 페이지로 이동
     } catch (error) {
       console.error('요약 생성 오류:', error);
       alert('요약 생성 중 오류가 발생했습니다.');
@@ -353,12 +359,8 @@ export default function History() {
       
       // 스토리지에 저장
       await chrome.storage.local.set({ savedItems: updatedItems });
-      setSavedItems(updatedItems);
-      
-      // 모달 닫기
       setIsProblemModalOpen(false);
       setSelectedItemForProblem(null);
-      
       
     } catch (error) {
       console.error('문제 생성 오류:', error);
@@ -371,10 +373,55 @@ export default function History() {
     }
   };
   
+  // 인증 로딩 중
+  if (authLoading) {
+    return (
+      <div className="max-w-3xl flex flex-col h-screen items-center justify-center mx-auto bg-level1 text-black p-5">
+        <h1 className="text-3xl font-bold text-level6 m-0 mb-4">Memozy</h1>
+        <div className="flex items-center justify-center gap-2 text-gray">
+          <div className="w-5 h-5 border-2 border-gray/20 rounded-full border-t-main animate-spin"></div>
+          <span>인증 상태 확인 중...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // 인증되지 않았을 때
+  if (!isAuthenticated) {
+     return (
+      <div className="max-w-3xl flex flex-col h-screen items-center justify-center mx-auto bg-level1 text-black p-5 text-center">
+        <h1 className="text-3xl font-bold text-level6 m-0 mb-6">Memozy</h1>
+        <p className="text-lg text-gray mb-8">
+          캡처 기록을 보려면<br/>먼저 로그인이 필요합니다.
+        </p>
+        <button
+          className="bg-main text-white py-2.5 px-6 rounded text-base font-medium hover:bg-blue-700 transition-colors"
+          onClick={login}
+        >
+          Google 계정으로 로그인
+        </button>
+        <p className='text-sm text-gray mt-4'>로그인 후 이 페이지가 자동으로 새로고침됩니다.</p>
+      </div>
+    );
+  }
+
+  // 인증되었고 데이터 로딩 중
+  if (loading) {
+     return (
+      <div className="max-w-3xl flex flex-col h-screen items-center justify-center mx-auto bg-level1 text-black p-5">
+        <h1 className="text-3xl font-bold text-level6 m-0 mb-4">Memozy</h1>
+        <div className="flex items-center justify-center gap-2 text-gray">
+          <div className="w-5 h-5 border-2 border-gray/20 rounded-full border-t-main animate-spin"></div>
+          <span>캡처 기록 로드 중...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-3xl @container flex flex-col h-full overflow-y-auto mx-auto bg-level1 text-black p-5">
-      <header className="flex justify-between items-center mb-5">
-        <h1 className="text-3xl font-bold text-level6 m-0">Memozy</h1>
+    <div className="max-w-3xl @container flex flex-col h-screen overflow-y-auto mx-auto bg-level1 text-black p-5">
+      <header className="flex justify-between items-center mb-5 sticky top-0 bg-level1 py-3 border-b border-light-gray z-10">
+        <h1 className="text-3xl font-bold text-level6 m-0">캡처 기록</h1>
         <div className="flex gap-2.5">
           {savedItems.length > 0 && (
             <button 
@@ -390,7 +437,7 @@ export default function History() {
       
       {/* 필터 컨트롤 */}
       {savedItems.length > 0 && (
-        <div className="flex gap-2.5 mb-4 flex-wrap">
+        <div className="flex gap-2.5 my-4 flex-wrap sticky top-[73px] bg-level1 py-3 z-10">
           <select
             className="py-2 px-3 border border-light-gray rounded bg-white text-sm"
             value={filter}
@@ -400,13 +447,14 @@ export default function History() {
             <option value="all">모든 타입</option>
             <option value="text">텍스트</option>
             <option value="image">이미지</option>
+            <option value="html">HTML</option>
           </select>
           
           <div className="flex-1 min-w-[200px]">
             <input
               className="w-full py-2 px-3 border border-light-gray rounded text-sm"
               type="text"
-              placeholder="검색어를 입력하세요..."
+              placeholder="내용, 제목, URL 검색..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               aria-label="검색"
@@ -415,126 +463,114 @@ export default function History() {
         </div>
       )}
       
-      {/* 로딩 상태 */}
-      {loading && (
-        <div className="flex justify-center py-10 text-gray">
-          <div className="w-6 h-6 border-2 border-gray/20 rounded-full border-t-main animate-spin mx-auto"></div>
-          <p>캡처 기록 로드 중...</p>
-        </div>
-      )}
-      
       {/* 빈 상태 */}
-      {!loading && savedItems.length === 0 && (
-        <div className="flex flex-col h-full items-center justify-center py-16 text-gray">
-          <h3 className="flex mb-2 text-level5 text-2xl font-semibold">캡처한 데이터가 없습니다</h3>
-          <p className="flex mb-5 text-xl text-gray">텍스트를 드래그하거나 이미지를 클릭하여 캡처해보세요.</p>
+      {savedItems.length === 0 && (
+        <div className="flex flex-col flex-grow items-center justify-center py-16 text-gray text-center">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-16 h-16 mb-4 text-gray-400">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+          </svg>
+          <h3 className="mb-2 text-level5 text-xl font-semibold">캡처한 기록이 없습니다</h3>
+          <p className="text-gray">팝업 메뉴에서 캡처 기능을 활성화하고<br/>웹 페이지의 텍스트나 이미지를 저장해보세요.</p>
         </div>
       )}
       
       {/* 검색 결과 없음 */}
-      {!loading && savedItems.length > 0 && filteredItems.length === 0 && (
-        <div className="text-center py-16 text-gray">
+      {savedItems.length > 0 && filteredItems.length === 0 && (
+        <div className="flex flex-col flex-grow items-center justify-center py-16 text-gray text-center">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-16 h-16 mb-4 text-gray-400">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+          </svg>
           <h3 className="mb-2 text-level6 font-semibold">검색 결과가 없습니다</h3>
           <p className="text-gray">다른 검색어나 필터를 사용해보세요.</p>
         </div>
       )}
       
       {/* 타이틀별로 그룹화된 아이템 목록 (use displayOrderUrls) */}
-      {!loading && displayOrderUrls.map(url => {
-        const { title: groupTitle, items } = groupedItemsForDisplay[url];
-        // Filter might remove all items from a group, check if items exist
-        if (!items || items.length === 0) return null;
+      <div className="flex-grow pb-5">
+        {displayOrderUrls.map(url => {
+          const group = groupedItemsForDisplay[url];
+           if (!group || !group.items || group.items.length === 0) return null;
+          const { title: groupTitle, items } = group;
 
-        return (
-          <div key={url} className="mb-4 bg-white rounded-lg shadow">
-            <div 
-              className="flex justify-between items-center p-3 bg-gray-100 border-b border-light-gray cursor-pointer"
-            >
-              <h3 onClick={() => toggleGroup(url)} className="w-full m-0 text-base font-semibold text-black flex items-center">
-                <span className="cursor-pointer line-clamp-1">
-                  {groupTitle}
-                  <span className="ml-2 text-sm font-normal text-gray">({items.length})</span>
-                </span>
-              </h3>
-              <div className="flex items-center gap-1">
-                  {/* Buttons using items[0] for summary/problem/link/delete group */} 
-                  {/* 요약 기능 버튼 */} 
-                  <button 
-                    className={`ml-2 text-xs w-11 h-15 py-1  rounded cursor-pointer transition-all ${
-                      items[0].summaryId ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'hover:bg-gray-200'
-                    }`}
-                    onClick={(e) => { e.stopPropagation(); if (!summarizingUrls[url]) handleCreateSummary(items[0]); }}
-                    disabled={summarizingUrls[url]}
-                    title={items[0].summaryId ? "요약 보기" : "요약 요청"}
-                  >
-                    {summarizingUrls[url] ? <span className="text-gray-400 text-sm">요약 중...</span> : <span className="text-xl">📋 <span className="text-base">요약</span></span>}
-                  </button>
-
-                  {/* 문제 만들기 버튼 */} 
-                  <button 
-                    className={`text-xs py-1 w-11 h-15 rounded transition-all ${
-                      items[0].problemId 
-                        ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 cursor-pointer' 
-                        : (items[0].summaryId && !creatingProblemsUrls[url]) 
-                          ? 'hover:bg-gray-200 cursor-pointer' 
-                          : 'text-gray-400 cursor-not-allowed'
-                    }`}
-                    onClick={(e) => { e.stopPropagation(); if (!creatingProblemsUrls[url]) handleCreateProblem(items[0]); }}
-                    disabled={(!items[0]?.summaryId && !items[0]?.problemId) || creatingProblemsUrls[url]}
-                    title={items[0].problemId ? "문제 보기" : (!items[0].summaryId ? "요약 후 문제 생성 가능" : "문제 만들기")}
-                  >
-                    {creatingProblemsUrls[url] 
-                      ? <span className="text-gray-400 text-sm">생성 중...</span> 
-                      : <span className="text-xl">📝 <span className="text-base">문제</span></span> }
-                  </button>
-
-                  {/* 원본 링크 버튼 */} 
-                  <button 
-                    className="text-xs py-1 w-11 h-15 rounded hover:bg-gray-200 cursor-pointer transition-all"
-                    onClick={(e) => { e.stopPropagation(); window.open(items[0].pageUrl); }}
-                    title="원본 페이지로 이동"
-                  >
-                    <span className="text-xl">🔗<br/><span className="text-base">링크</span></span>
-                  </button>
-
-                  {/* URL 그룹 삭제 버튼 */} 
-                  <button 
-                    className="text-xs py-1 w-11 h-15 rounded hover:bg-red-200 text-red-700 cursor-pointer transition-all"
-                    onClick={(e) => { e.stopPropagation(); handleDeleteUrlGroup(url); }}
-                    title="이 URL의 모든 항목 삭제"
-                  >
-                    <span className="text-xl">🗑️<br/><span className="text-base">삭제</span></span>
-                  </button>
-
-                  {/* 접기/펼치기 버튼 */} 
-                  <button 
-                    className="bg-transparent w-11 h-15 py-1 border-0 text-gray text-base hover:bg-gray-200 cursor-pointer"
-                    onClick={(e) => { e.stopPropagation(); toggleGroup(url); }}
-                  >
-                    {expandedGroups === url ? '▼' : '◀'}
-                  </button>
-              </div>
-            </div>
-            
-            {expandedGroups === url && (
-              <div className="p-4">
-                <div className="overflow-y-auto max-h-[calc(100vh-200px)]">
-                  {items.map(item => ( // items are already sorted by DOM path
-                    <CapturedItemCard
-                      key={item.id}
-                      item={item}
-                      onDelete={handleDelete}
-                      onDownload={handleDownload}
-                      showUrl={false} // URL is shown in group header
-                    />
-                  ))}
+          return (
+            <div key={url} className="mb-4 bg-white rounded-lg shadow-sm border border-light-gray overflow-hidden">
+              <div
+                className="flex justify-between items-center p-3 bg-gray-50 border-b border-light-gray cursor-pointer hover:bg-gray-100 transition-colors"
+                 onClick={() => toggleGroup(url)}
+              >
+                 <div className="flex-1 min-w-0 mr-2">
+                    <h3 className="m-0 text-base font-semibold text-black truncate flex items-center" title={groupTitle}>
+                        <span className="mr-1">
+                         {expandedGroups === url ? '▼' : '▶'}
+                        </span>
+                        {groupTitle}
+                        <span className="ml-2 text-sm font-normal text-gray flex-shrink-0">({items.length})</span>
+                    </h3>
+                 </div>
+                 <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      className={`text-xs w-[70px] h-[40px] py-1 px-1.5 rounded border transition-all ${
+                        items[0].summaryId ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'
+                      } ${summarizingUrls[url] ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}
+                      onClick={(e) => { e.stopPropagation(); if (!summarizingUrls[url]) handleCreateSummary(items[0]); }}
+                      disabled={summarizingUrls[url]}
+                      title={items[0].summaryId ? "요약 보기" : "요약 생성 요청"}
+                    >
+                      {summarizingUrls[url] ? <span className="text-xs">요약중...</span> : <>📋<span className="ml-1 text-xs">요약</span></>}
+                    </button>
+                    <button
+                       className={`text-xs w-[70px] h-[40px] py-1 px-1.5 rounded border transition-all ${
+                        items[0].problemId
+                          ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 cursor-pointer'
+                          : items[0].summaryId && !creatingProblemsUrls[url]
+                            ? 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer'
+                            : 'bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed'
+                      } ${creatingProblemsUrls[url] ? 'opacity-50 cursor-wait' : ''}`}
+                      onClick={(e) => { e.stopPropagation(); if (!creatingProblemsUrls[url]) handleCreateProblem(items[0]); }}
+                      disabled={!items[0]?.summaryId || creatingProblemsUrls[url]}
+                      title={items[0].problemId ? "문제 보기" : (!items[0].summaryId ? "요약 후 문제 생성 가능" : "문제 만들기")}
+                    >
+                      {creatingProblemsUrls[url]
+                        ? <span className="text-xs">생성중...</span>
+                        : <>📝<span className="ml-1 text-xs">문제</span></>}
+                    </button>
+                    <button
+                      className="text-xs w-[70px] h-[40px] py-1 px-1.5 rounded border bg-white border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer transition-all"
+                      onClick={(e) => { e.stopPropagation(); window.open(items[0].pageUrl, '_blank'); }}
+                      title="원본 페이지 새 탭으로 열기"
+                    >
+                      🔗<span className="ml-1 text-xs">링크</span>
+                    </button>
+                    <button
+                       className="text-xs w-[70px] h-[40px] py-1 px-1.5 rounded border bg-red-50 border-red-200 text-red-600 hover:bg-red-100 cursor-pointer transition-all"
+                      onClick={(e) => { e.stopPropagation(); handleDeleteUrlGroup(url); }}
+                      title="이 그룹의 모든 항목 삭제"
+                    >
+                      🗑️<span className="ml-1 text-xs">삭제</span>
+                    </button>
                 </div>
               </div>
-            )}
-          </div>
-        );
-      })}
-      
+
+              {expandedGroups === url && (
+                <div className="border-t border-light-gray">
+                   <div className="p-3 space-y-3">
+                    {items.map(item => (
+                      <CapturedItemCard
+                        key={item.id}
+                        item={item}
+                        onDelete={handleDelete}
+                        onDownload={handleDownload}
+                        showUrl={false}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
       {selectedItemForProblem && (
         <CreateProblemModal
           isOpen={isProblemModalOpen}
