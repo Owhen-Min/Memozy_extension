@@ -1,13 +1,7 @@
 import { CapturedItem, ImageContent } from '../../types';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useState, useEffect, useRef } from 'react';
-import TurndownService from 'turndown';
-import { tablePlugin } from '../../utils/tablePlugin';
-import { codeBlockPlugin } from '../../utils/codeBlockPlugin';
-import { listPlugin } from '../../utils/listPlugin';
+import customTurndown from '../../lib/turndown/customTurndown';
+import CustomReactMarkdown from '../../lib/react-markdown/CustomReactMarkdown';
 
 interface CapturedItemCardProps {
   item: CapturedItem;
@@ -32,18 +26,7 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Instantiate TurndownService within the component or globally if preferred
-  const turndownService = new TurndownService({
-    headingStyle: 'atx', // Optional: Use '#' for headings
-    hr: '---',           // Optional: Use '---' for horizontal rules
-    bulletListMarker: '*', // Optional: Use '*' for unordered lists
-    codeBlockStyle: 'fenced', // Optional: Use ``` for code blocks
-    emDelimiter: '*',    // Optional: Use '*' for emphasis
-    strongDelimiter: '**', // Optional: Use '**' for strong emphasis
-    linkStyle: 'inlined' // Optional: Use inline links
-  });
-  turndownService.use(tablePlugin);
-  turndownService.use(codeBlockPlugin);
-  turndownService.use(listPlugin);
+  const turndownService = customTurndown();
 
   useEffect(() => {
     // 컴포넌트 마운트 시 부모 그룹 컨테이너 찾기
@@ -126,81 +109,9 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
         return (
           <div className="card-content relative text-sm">
             <div className="prose prose-slate dark:prose-invert max-w-none overflow-auto">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  // 코드 블록 커스텀 렌더링
-                  code({ node, className, children, ...props }) {
-                    const match = /language-(\w+)/.exec((className || '').trim());
-                    // Don't pass DOM element props to SyntaxHighlighter component
-                    const { ref, ...syntaxProps } = props as any;
-                    
-                    return match ? (
-                      <div className="rounded-md overflow-hidden my-4">
-                        <SyntaxHighlighter
-                          style={oneLight}
-                          language={match[1]}
-                          showLineNumbers={true}
-                          PreTag="div"
-                          {...syntaxProps}
-                        >
-                          {String(children).replace(/\n$/, '')}
-                        </SyntaxHighlighter>
-                      </div>
-                    ) : (
-                      <code 
-                        className={`${className} text-red-500 bg-gray-200 px-1 rounded text-sm font-mono`} 
-                        {...props}
-                      >
-                        {children}
-                      </code>
-                    );
-                  },
-                  // 테이블 커스텀 렌더링
-                  table({ node, ...props }) {
-                    return (
-                      <div className="overflow-x-auto my-8 rounded-lg border border-gray-200">
-                        <table className="min-w-full divide-y divide-gray-200" {...props} />
-                      </div>
-                    );
-                  },
-                  // 테이블 헤더 커스텀 렌더링
-                  thead({ node, ...props }) {
-                    return (
-                      <thead className="bg-gray-50" {...props} />
-                    );
-                  },
-                  // 테이블 헤더 셀 커스텀 렌더링
-                  th({ node, ...props }) {
-                    return (
-                      <th 
-                        className="px-6 py-3 text-left text-xs font-medium text-black uppercase tracking-wider" 
-                        {...props} 
-                      />
-                    );
-                  },
-                  // 테이블 바디 셀 커스텀 렌더링
-                  td({ node, ...props }) {
-                    return (
-                      <td 
-                        className="px-6 py-4 whitespace-nowrap text-sm text-black" 
-                        {...props} 
-                      />
-                    );
-                  },
-                  // 인용 블록 커스텀 렌더링
-                  blockquote({ node, ...props }) {
-                    return (
-                      <blockquote 
-                        className="border-l-4 border-gray-300 dark:border-gray-700 pl-4 italic my-6 text-gray-600 dark:text-gray-400" 
-                        {...props} 
-                      />
-                    );
-                  }
-                }}
-              >
+              <CustomReactMarkdown>
                 {markdownContent}
-              </ReactMarkdown>
+              </CustomReactMarkdown>
             </div>
           </div>
         );
@@ -286,7 +197,7 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
             ref={textareaRef}
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
-            className="w-full max-h-[80vh] p-3 border border-gray-300 rounded-md mb-3 text-sm overflow-y-auto resize-none block"
+            className="w-full p-3 border border-gray-300 rounded-md mb-3 text-sm overflow-y-auto resize-none block"
             rows={1}
             aria-label="콘텐츠 수정"
           />

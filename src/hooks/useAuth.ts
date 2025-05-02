@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
+import { setAuthToken as setToken } from './useApi';
 
 const AUTH_TOKEN_KEY = 'google_auth_token';
-const GOOGLE_AUTH_URL = 'http://memozy.site/oauth2/authorization/google?state=mode:extension';
+const GOOGLE_AUTH_URL = 'https://memozy.site/oauth2/authorization/google?state=mode:extension';
 
 // URL 해시 또는 쿼리 파라미터에서 access_token 추출하는 헬퍼 함수
 const extractTokenFromUrl = (url: string): string | null => {
@@ -39,7 +40,6 @@ export const useAuth = () => {
         // TODO: 여기서 토큰 유효성 검증 API 호출을 추가하면 더 좋습니다.
         setIsAuthenticated(true);
         setAuthToken(token);
-        console.log('기존 토큰으로 인증됨');
       } else {
         setIsAuthenticated(false);
         setAuthToken(null);
@@ -70,6 +70,7 @@ export const useAuth = () => {
           setIsAuthenticated(false);
           setAuthToken(null);
           setAuthLoading(false);
+          setToken(null);
           return;
         }
 
@@ -153,6 +154,16 @@ export const useAuth = () => {
       chrome.storage.onChanged.removeListener(handleStorageChange);
     };
   }, [checkAuthStatus]);
+
+  useEffect(() => {
+    if (authToken) {
+      setAuthToken(authToken);
+      setToken(authToken);
+    } else {
+      setAuthToken(null);
+      setToken(null);
+    }
+  }, [authToken]);
 
   return {
     isAuthenticated,

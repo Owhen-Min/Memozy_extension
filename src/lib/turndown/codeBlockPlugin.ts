@@ -1,5 +1,4 @@
 import TurndownService from 'turndown';
-import { extractContent } from '@wrtnlabs/web-content-extractor';
 
 export function codeBlockPlugin(turndownService: TurndownService) {
   turndownService.addRule('codeblock', {
@@ -81,7 +80,7 @@ export function codeBlockPlugin(turndownService: TurndownService) {
                   .map(span => span.textContent || '')
                   .join('');
               })
-              .join('\\n');
+              .join('\n');
           } else if (tableRows.length > 0) {
             // 각 tr에서 hljs-ln-code 클래스를 가진 td의 내용을 추출
             codeText = Array.from(tableRows)

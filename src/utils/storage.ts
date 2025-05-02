@@ -76,6 +76,15 @@ export const setHtmlModeState = (state: boolean): Promise<void> => {
   });
 };
 
+// 토큰 가져오기
+export const getToken = (): Promise<string | null> => {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['token'], (result) => {
+      resolve(result.token || null);
+    });
+  });
+};
+
 // 아이템 삭제하기
 export const deleteItem = async (itemId: number): Promise<void> => {
   const items = await getSavedItems();

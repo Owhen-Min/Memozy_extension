@@ -152,18 +152,6 @@ function getDomPathRelationship(path1: string | undefined, path2: string | undef
     }
 }
 
-// domPath의 마지막 선택자에서 :nth-of-type(N) 값을 추출하는 함수
-function extractNthOfTypeValue(path: string | undefined): number | null {
-    if (!path) return null;
-    const parts = path.split(' > ');
-    const lastPart = parts[parts.length - 1];
-
-    const match = lastPart.match(/:nth-of-type\((\d+)\)$/);
-    if (match && match[1]) {
-        return parseInt(match[1], 10);
-    }
-    return null; // ID 선택자거나 nth-of-type이 없는 경우
-}
 
 // DOM 경로의 모든 선택자에서 nth-of-type 값을 추출하는 함수
 function extractAllNthOfTypeValues(path: string | undefined): number[] {

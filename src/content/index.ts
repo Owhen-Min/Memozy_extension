@@ -408,7 +408,7 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
     const hostname = window.location.hostname;
     
     // 사이트별 HTML 컨텐츠 추출 로직
-    if (hostname === 'blog.naver.com') {
+    if (hostname.endsWith('blog.naver.com')) {
       const iframe = document.body.querySelector('iframe');
       if (iframe && iframe.src) {
         const iframeSrc = iframe.src;
@@ -440,7 +440,7 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
       } else {
         return { success: false, error: '네이버 블로그 글 안에서 저장 버튼을 눌러주세요.' };
       }
-    } else if (hostname === 'velog.io') {
+    } else if (hostname.endsWith('velog.io')) {
       const content = document.querySelector('.atom-one');
       if (content) {
         console.log('velog 컨텐츠 저장 시작');
@@ -454,19 +454,27 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
       if (content) {
         html = content.outerHTML;
       }
-    } else if (hostname == 'brunch.co.kr') {
+    } else if (hostname.endsWith('brunch.co.kr')) {
       const content = document.querySelector('.wrap_view_article');
       if (content) {
         html = content.outerHTML;
       } else {
         return { success: false, error: '브런치 글 안에서 저장 버튼을 눌러주세요.' };
       }
-    } else if (hostname == 'chatgpt.com' || hostname == 'perplexity.ai' ) {
+    } else if (hostname.endsWith('chatgpt.com')) {
       const contents = document.querySelectorAll('.prose');
       if (contents) {
         html = Array.from(contents).map(content => content.outerHTML).join('\n\n');
       } else {
-        return { success: false, error: '오류가 발생했습니다. 드래그로 콘텐츠를 선택해주세요.' };
+        return { success: false, error: 'ChatGPT 콘텐츠를 특정하지 못했습니다. 드래그로 선택해주세요.' };
+      }
+    } else if ( hostname.endsWith('perplexity.ai') ) {
+      // Select elements potentially containing the answer
+      const contents = document.querySelectorAll('div.prose p');
+      if (contents) {
+        html = Array.from(contents).map(content => content.outerHTML).join('\n\n');
+      } else {
+        return { success: false, error: 'Perplexity.ai의 답변 콘텐츠를 특정하지 못했습니다. 드래그로 선택해주세요.' };
       }
     } else if (hostname == 'namu.wiki') {
       const rootContents = document.querySelectorAll('div[data-v-d16cf66c]');
@@ -489,9 +497,7 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
           .flatMap(root => getInnermostContents(root))
           .map(content => content.outerHTML);
         
-        const rawHtml = contents.join('\n\n');
-        const { contentHtmls } = await extractContent(rawHtml);
-        html = contentHtmls.join('');
+        const html = contents.join('\n\n');
       } else {
         return { success: false, error: '나무위키 글 안에서 저장 버튼을 눌러주세요.' };
       }
@@ -501,7 +507,8 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
       console.log('일반 페이지 전체 HTML 저장 시도');
       try {
           const doctype = document.doctype ? new XMLSerializer().serializeToString(document.doctype) : '';
-          html = doctype + document.documentElement.outerHTML; 
+          const contentHtmls = extractContent(doctype + document.documentElement.outerHTML).contentHtmls;
+          html = contentHtmls.join('');
           console.log('전체 document HTML을 사용합니다.');
       } catch (extractError) {
              console.error("HTML 추출 중 오류:", extractError);

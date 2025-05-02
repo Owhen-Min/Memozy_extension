@@ -7,10 +7,8 @@ import CreateProblemModal, { ProblemCreationData } from './components/CreateProb
 import { useAuth } from '../hooks/useAuth';
 import ArrowDown from '../svgs/arrow-down.svg';
 import ArrowRight from '../svgs/arrow-right.svg';
-import TurndownService from 'turndown';
-import { tablePlugin } from '../utils/tablePlugin';
-import { codeBlockPlugin } from '../utils/codeBlockPlugin';
-import { listPlugin } from '../utils/listPlugin';
+import CreateSummaryModal from './components/CreateSummaryModal';
+import customTurndown from '../lib/turndown/customTurndown';
 
 // --- Helper functions for DOM path comparison ---
 
@@ -75,21 +73,13 @@ export default function History() {
   const [creatingProblemsUrls, setCreatingProblemsUrls] = useState<{[url: string]: boolean}>({});
   const [isProblemModalOpen, setIsProblemModalOpen] = useState(false);
   const [selectedItemForProblem, setSelectedItemForProblem] = useState<CapturedItem | null>(null);
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+  const [selectedItemGroupForSummary, setSelectedItemGroupForSummary] = useState<CapturedItem[]>([]);
+  const [selectedGroupInfo, setSelectedGroupInfo] = useState<{ url: string; title: string } | null>(null);
   const navigate = useNavigate();
   
   // Instantiate TurndownService and apply plugins
-  const turndownService = new TurndownService({
-    headingStyle: 'atx',
-    hr: '---',
-    bulletListMarker: '*',
-    codeBlockStyle: 'fenced',
-    emDelimiter: '*',
-    strongDelimiter: '**',
-    linkStyle: 'inlined'
-  });
-  turndownService.use(tablePlugin);
-  turndownService.use(codeBlockPlugin);
-  turndownService.use(listPlugin);
+  const turndownService = customTurndown();
 
   // 저장된 아이템 불러오기 함수 분리 (재사용 위해)
   const loadItems = useCallback(async () => {
@@ -361,33 +351,62 @@ export default function History() {
     setExpandedGroups(prev => prev === url ? '' : url);
   };
   
-  // 요약 기능 처리
-  const handleCreateSummary = async (item: CapturedItem) => {
-    if (item.summaryId) {
-      navigate(`/summary/${item.summaryId}`);
-      return;
-    }
+  // 요약 기능 처리 (모달 열기)
+  const handleOpenSummaryModal = (url: string, title: string) => {
     if (!authToken) {
         alert('인증 토큰이 없습니다. 다시 로그인해주세요.');
         return;
     }
 
-    setSummarizingUrls(prev => ({...prev, [item.pageUrl]: true}));
+    const itemsInGroup = groupedItemsForDisplay[url]?.items;
+    if (!itemsInGroup || itemsInGroup.length === 0) {
+        console.warn('요약할 아이템이 없는 그룹입니다:', url);
+        alert('요약할 항목이 없습니다.');
+        return;
+    }
+
+    // 이미 요약이 있는 경우 바로 이동
+    if (itemsInGroup[0].summaryId) {
+       navigate(`/summary/${itemsInGroup[0].summaryId}`);
+       return;
+    }
+
+    setSelectedItemGroupForSummary(itemsInGroup);
+    setSelectedGroupInfo({ url, title });
+    setIsSummaryModalOpen(true);
+  };
+
+  // 요약 모달 제출 처리
+  const handleSummaryModalSubmit = async (selectedItems: CapturedItem[], summaryContent: string, summaryType: 'markdown' | 'ai') => {
+    if (selectedItems.length === 0) {
+      setIsSummaryModalOpen(false);
+      return;
+    }
+
+    const pageUrl = selectedItems[0].pageUrl;
+    setSummarizingUrls(prev => ({...prev, [pageUrl]: true}));
+    setIsSummaryModalOpen(false);
+
     try {
-      console.log('요약 생성 요청:', item.pageUrl, '토큰:', authToken ? '있음' : '없음');
-      await new Promise(resolve => setTimeout(resolve, 1000));
       const summaryId = "summary_" + Date.now();
       const currentItemsResult = await chrome.storage.local.get(['savedItems']);
       const currentItems = (currentItemsResult.savedItems || []) as CapturedItem[];
-      const updatedItems = currentItems.map(savedItem =>
-        savedItem.pageUrl === item.pageUrl ? { ...savedItem, summaryId } : savedItem
+      
+      // 선택된 항목들에만 summaryId 할당
+      const updatedItems = currentItems.map(item => 
+        selectedItems.some(selected => selected.id === item.id)
+          ? { ...item, summaryId, summaryContent, summaryType }
+          : item
       );
+      
       await chrome.storage.local.set({ savedItems: updatedItems });
+
     } catch (error) {
       console.error('요약 생성 오류:', error);
       alert('요약 생성 중 오류가 발생했습니다.');
     } finally {
-      setSummarizingUrls(prev => ({...prev, [item.pageUrl]: false}));
+      setSummarizingUrls(prev => ({...prev, [pageUrl]: false}));
+      setSelectedItemGroupForSummary([]);
     }
   };
   
@@ -486,8 +505,10 @@ export default function History() {
       {/* header 높이를 명시적으로 지정 (필터가 있을 때 140px, 없을 때 100px) */}
       <header className="flex flex-col sticky top-0 justify-between items-center bg-level1 pt-8 pb-3 border-b border-light-gray z-30 h-[160px]">
         <div className="flex justify-between items-center w-full">
-          <h1 className="flex text-3xl font-bold text-level6 m-0">캡처 기록</h1>
-          
+          <div className="flex items-center gap-2">
+            <img src="/icon128.png" alt="Memozy" className="w-9 h-9" />
+            <h1 className="flex text-3xl font-bold text-level6 m-0">Memozy</h1>
+          </div>
           <div className="flex gap-2.5">
             {savedItems.length > 0 && (
               <button 
@@ -536,7 +557,7 @@ export default function History() {
           const { title: groupTitle, items } = group;
 
           return (
-            <div key={url} className="group-container min-h-19 max-h-[calc(100vh-160px)] mb-4 bg-white rounded-lg shadow-sm border border-light-gray overflow-auto">
+            <div key={url} className="group-container min-h-19 max-h-[calc(90vh-160px)] mb-4 bg-white rounded-lg shadow-sm border border-light-gray overflow-auto">
               <div className="sticky top-0 z-20 flex justify-between items-center p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
                 onClick={() => toggleGroup(url)}
               >
@@ -554,9 +575,9 @@ export default function History() {
                      className={`flex flex-col text-xs w-[35px] h-[50px] px-1 rounded border transition-all flex items-center justify-center gap-1 ${
                        items[0].summaryId ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'
                      } ${summarizingUrls[url] ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}
-                     onClick={(e) => { e.stopPropagation(); if (!summarizingUrls[url]) handleCreateSummary(items[0]); }}
+                     onClick={(e) => { e.stopPropagation(); if (!summarizingUrls[url]) handleOpenSummaryModal(url, groupTitle); }}
                      disabled={summarizingUrls[url]}
-                     title={items[0].summaryId ? "요약 보기" : "요약 생성 요청"}
+                     title={items[0].summaryId ? "요약 보기" : "요약 생성"}
                    >
                      {summarizingUrls[url] ? <span className="text-xs">요약중...</span> : <><span className="text-lg">📋</span><span className="ml-0.5 text-xs">요약</span></>}
                    </button>
@@ -624,6 +645,22 @@ export default function History() {
           onSubmit={handleProblemModalSubmit}
           item={selectedItemForProblem}
         />
+      )}
+
+      {/* 추가: 요약 모달 */}
+      {selectedGroupInfo && selectedItemGroupForSummary.length > 0 && (
+          <CreateSummaryModal
+              isOpen={isSummaryModalOpen}
+              onClose={() => {
+                  setIsSummaryModalOpen(false);
+                  setSelectedItemGroupForSummary([]);
+                  setSelectedGroupInfo(null); // 모달 닫을 때 상태 초기화
+              }}
+              onSubmit={handleSummaryModalSubmit}
+              items={selectedItemGroupForSummary}
+              pageUrl={selectedGroupInfo.url} // url prop 전달
+              pageTitle={selectedGroupInfo.title} // title prop 전달
+          />
       )}
     </div>
   );
