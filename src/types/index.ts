@@ -52,9 +52,9 @@ export type MessageAction =
   | 'downloadItem'
   | 'openHistoryPage'
   | 'toggleCapturing'
-  | 'toggleHtmlMode'
   | 'contentScriptReady'
-  | 'contentScriptCheck';
+  | 'contentScriptCheck'
+  | 'generateAiSummary';
 
 // 메시지 인터페이스
 export interface Message {

@@ -68,7 +68,8 @@ export type MessageAction =
   | 'openHistoryPage'
   | 'downloadItem'
   | 'extractContent'
-  | 'fetchIframeContent';
+  | 'fetchIframeContent'
+  | 'generateAiSummary';
 
 // 메시지 인터페이스
 export interface Message {

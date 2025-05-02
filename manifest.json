@@ -8,7 +8,7 @@
         "client_id": "dfghbgncpceajjhnkmfinhmdafmkglak", 
         "scopes": ["openid", "email", "profile"]
       },
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": ["*://memozy.site/*"],
   "icons": {
     "16": "icon16.png",
     "24": "icon24.png",
