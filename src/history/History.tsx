@@ -5,6 +5,12 @@ import '../Global.css';
 import { useNavigate } from 'react-router-dom';
 import CreateProblemModal, { ProblemCreationData } from './components/CreateProblemModal';
 import { useAuth } from '../hooks/useAuth';
+import ArrowDown from '../svgs/arrow-down.svg';
+import ArrowRight from '../svgs/arrow-right.svg';
+import TurndownService from 'turndown';
+import { tablePlugin } from '../utils/tablePlugin';
+import { codeBlockPlugin } from '../utils/codeBlockPlugin';
+import { listPlugin } from '../utils/listPlugin';
 
 // --- Helper functions for DOM path comparison ---
 
@@ -71,6 +77,20 @@ export default function History() {
   const [selectedItemForProblem, setSelectedItemForProblem] = useState<CapturedItem | null>(null);
   const navigate = useNavigate();
   
+  // Instantiate TurndownService and apply plugins
+  const turndownService = new TurndownService({
+    headingStyle: 'atx',
+    hr: '---',
+    bulletListMarker: '*',
+    codeBlockStyle: 'fenced',
+    emDelimiter: '*',
+    strongDelimiter: '**',
+    linkStyle: 'inlined'
+  });
+  turndownService.use(tablePlugin);
+  turndownService.use(codeBlockPlugin);
+  turndownService.use(listPlugin);
+
   // 저장된 아이템 불러오기 함수 분리 (재사용 위해)
   const loadItems = useCallback(async () => {
     if (!isAuthenticated) {
@@ -214,20 +234,76 @@ export default function History() {
   // 아이템 다운로드 처리
   const handleDownload = async (item: CapturedItem) => {
     try {
-      const response = await chrome.runtime.sendMessage({
+      let markdownContent: string | undefined = undefined;
+
+      // Convert HTML to Markdown for text/html types
+      if ((item.type === 'text' || item.type === 'html') && typeof item.content === 'string') {
+        try {
+          markdownContent = turndownService.turndown(item.content);
+        } catch (conversionError) {
+          console.error('HTML to Markdown 변환 오류:', conversionError);
+          alert('Markdown 변환 중 오류가 발생했습니다.');
+          return; // Stop download if conversion fails
+        }
+      } else if (item.type !== 'image') {
+          // Handle cases where content is not a string for text/html
+          console.warn('다운로드할 텍스트/HTML 콘텐츠가 문자열이 아닙니다:', item);
+          // Optionally provide default markdown or alert the user
+          markdownContent = `# ${item.pageTitle || '제목 없음'}\n\n콘텐츠를 Markdown으로 변환할 수 없습니다.`;
+      }
+
+
+      // Send message to background script
+      const messagePayload: any = {
         action: 'downloadItem',
         item: item
-      });
-      
+      };
+
+      // Include markdownContent only if it was generated
+      if (markdownContent !== undefined) {
+          messagePayload.markdownContent = markdownContent;
+      }
+
+
+      const response = await chrome.runtime.sendMessage(messagePayload);
+
       if (!response || !response.success) {
         console.error('다운로드 실패:', response?.error || '알 수 없는 오류');
-        alert(`다운로드 실패: ${response?.error || '알 수 없는 오류'}`);
+        // Provide more specific feedback if possible
+        const errorMessage = response?.error === 'Markdown 콘텐츠 누락 또는 잘못된 타입'
+                             ? 'Markdown 변환 데이터가 없어 다운로드할 수 없습니다.'
+                             : response?.error || '알 수 없는 오류';
+        alert(`다운로드 실패: ${errorMessage}`);
       }
     } catch (error: any) {
       console.error('다운로드 요청 오류:', error);
-      alert(`다운로드 요청 오류: ${error.message || error}`);
+      // Check for specific context invalidated error
+      if (error.message?.includes('Extension context invalidated')) {
+           alert('다운로드 실패: 확장 프로그램 컨텍스트 오류. 페이지를 새로고침하거나 확장 프로그램을 다시 로드해보세요.');
+      } else {
+           alert(`다운로드 요청 오류: ${error.message || error}`);
+      }
     }
   };
+
+  // 아이템 수정 처리
+  const handleEdit = async (item: CapturedItem, newContent: string) => {
+    try {
+      const currentItemsResult = await chrome.storage.local.get(['savedItems']);
+      const currentItems = (currentItemsResult.savedItems || []) as CapturedItem[];
+      const updatedItems = currentItems.map(savedItem => 
+        savedItem.id === item.id 
+          ? { ...savedItem, content: newContent }
+          : savedItem
+      );
+      await chrome.storage.local.set({ savedItems: updatedItems });
+    } catch (error) {
+      console.error('아이템 수정 오류:', error);
+      alert('아이템 수정 중 오류가 발생했습니다.');
+    }
+  };
+
+  
   
   // 필터링된 아이템 (이제 savedItems는 이미 정렬된 상태)
   const filteredItems = savedItems.filter(item => {
@@ -492,12 +568,12 @@ export default function History() {
                 className="flex justify-between items-center p-3 bg-gray-50 border-b border-light-gray cursor-pointer hover:bg-gray-100 transition-colors"
                  onClick={() => toggleGroup(url)}
               >
-                 <div className="flex-1 min-w-0 mr-2">
-                    <h3 className="m-0 text-base font-semibold text-black truncate flex items-center" title={groupTitle}>
+                 <div className="flex min-w-0 mr-2">
+                    <h3 className="m-0 text-base font-semibold text-black flex items-center" title={groupTitle}>
                         <span className="mr-1">
-                         {expandedGroups === url ? '▼' : '▶'}
+                         {expandedGroups === url ? <ArrowDown/> : <ArrowRight/>}
                         </span>
-                        {groupTitle}
+                        <span className="line-clamp-1">{groupTitle}</span>
                         <span className="ml-2 text-sm font-normal text-gray flex-shrink-0">({items.length})</span>
                     </h3>
                  </div>
@@ -554,6 +630,7 @@ export default function History() {
                         item={item}
                         onDelete={handleDelete}
                         onDownload={handleDownload}
+                        onEdit={handleEdit}
                         showUrl={false}
                       />
                     ))}

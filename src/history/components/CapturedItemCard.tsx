@@ -7,27 +7,42 @@ import { useState, useEffect, useRef } from 'react';
 import TurndownService from 'turndown';
 import { tablePlugin } from '../../utils/tablePlugin';
 import { codeBlockPlugin } from '../../utils/codeBlockPlugin';
+import { listPlugin } from '../../utils/listPlugin';
 
 interface CapturedItemCardProps {
   item: CapturedItem;
   onDelete: (id: number) => void;
   onDownload: (item: CapturedItem) => void;
-  showUrl?: boolean; // URL 표시 여부 (옵션)
+  onEdit: (item: CapturedItem, newContent: string) => void;
+  showUrl?: boolean;
 }
 
 const CapturedItemCard: React.FC<CapturedItemCardProps> = ({ 
   item, 
   onDelete, 
   onDownload,
+  onEdit,
   showUrl = true // 기본값은 true
 }) => {
   const [showScrollButton, setShowScrollButton] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(() => typeof item.content === 'string' ? item.content : '');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Instantiate TurndownService within the component or globally if preferred
-  const turndownService = new TurndownService({});
+  const turndownService = new TurndownService({
+    headingStyle: 'atx', // Optional: Use '#' for headings
+    hr: '---',           // Optional: Use '---' for horizontal rules
+    bulletListMarker: '*', // Optional: Use '*' for unordered lists
+    codeBlockStyle: 'fenced', // Optional: Use ``` for code blocks
+    emDelimiter: '*',    // Optional: Use '*' for emphasis
+    strongDelimiter: '**', // Optional: Use '**' for strong emphasis
+    linkStyle: 'inlined' // Optional: Use inline links
+  });
   turndownService.use(tablePlugin);
   turndownService.use(codeBlockPlugin);
+  turndownService.use(listPlugin);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -47,6 +62,13 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
       return () => container.removeEventListener('scroll', handleScroll);
     }
   }, []);
+
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [isEditing, editContent]);
 
   const scrollToTop = () => {
     if (cardRef.current) {
@@ -205,30 +227,21 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
     }
   };
   
+  const handleEditSubmit = () => {
+    if (typeof item.content === 'string') {
+        onEdit(item, editContent);
+        setIsEditing(false);
+    }
+  };
+
+  const handleEditCancel = () => {
+    setEditContent(typeof item.content === 'string' ? item.content : '');
+    setIsEditing(false);
+  };
+
   return (
     <div ref={cardRef} className="card flex flex-col gap-2 my-2 border-b border-light-gray pb-2 relative">
-      {showScrollButton && (
-        <button
-          onClick={scrollToTop}
-          className="fixed bottom-10 right-10 bg-main text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors z-50"
-          title="위로 이동"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-          </svg>
-        </button>
-      )}
-      <div className="card-header">
-          {showUrl && (
-            <div className="card-meta text-base">
-              {item.pageUrl}
-            </div>
-          )}
-      </div>
-      
-      {renderContent()}
-      
-      <div className="card-footer flex justify-between items-center">
+      <div className="card-header flex justify-between items-center sticky top-0 bg-white z-10 py-2 border-b border-light-gray mb-2">
         <div className="flex gap-2">
           <span className="timestamp text-base">
             {formatDate(item.timestamp)}
@@ -247,6 +260,17 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
           >
             다운로드
           </button>
+
+          <button 
+            onClick={() => {
+              setIsEditing(true);
+              setEditContent(typeof item.content === 'string' ? item.content : '');
+            }}
+            className="bg-blue-500 text-white border-0 py-2 px-4 rounded hover:bg-blue-600 transition-colors font-medium text-sm"
+            title="수정"
+          >
+            수정
+          </button>
           
           <button 
             onClick={() => onDelete(item.id)}
@@ -257,6 +281,56 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
           </button>
         </div>
       </div>
+
+      {isEditing ? (
+        <div className="edit-mode p-4 border-t border-light-gray">
+          <textarea
+            ref={textareaRef}
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            className="w-full max-h-[80vh] p-3 border border-gray-300 rounded-md mb-3 text-sm overflow-y-auto resize-none block"
+            rows={1}
+            aria-label="콘텐츠 수정"
+          />
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={handleEditCancel}
+              className="bg-gray-200 text-gray-700 border-0 py-2 px-4 rounded hover:bg-gray-300 transition-colors font-medium text-sm"
+            >
+              취소
+            </button>
+            <button
+              onClick={handleEditSubmit}
+              className="bg-blue-500 text-white border-0 py-2 px-4 rounded hover:bg-blue-600 transition-colors font-medium text-sm"
+            >
+              저장
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {showScrollButton && (
+            <button
+              onClick={scrollToTop}
+              className="fixed bottom-10 right-10 bg-main text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors z-50"
+              title="위로 이동"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+              </svg>
+            </button>
+          )}
+          <div className="card-footer">
+              {showUrl && (
+                <div className="card-meta text-base">
+                  {item.pageUrl}
+                </div>
+              )}
+          </div>
+          
+          {renderContent()}
+        </>
+      )}
     </div>
   );
 };

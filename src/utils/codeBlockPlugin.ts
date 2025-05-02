@@ -1,4 +1,5 @@
 import TurndownService from 'turndown';
+import { extractContent } from '@wrtnlabs/web-content-extractor';
 
 export function codeBlockPlugin(turndownService: TurndownService) {
   turndownService.addRule('codeblock', {
@@ -67,6 +68,9 @@ export function codeBlockPlugin(turndownService: TurndownService) {
         if (innerCode) {
           // div 기반 줄바꿈 처리
           const lineDivs = innerCode.querySelectorAll('div');
+          // table 기반 줄바꿈 처리 (hljs-ln)
+          const tableRows = innerCode.querySelectorAll('table.hljs-ln > tbody > tr');
+
           if (lineDivs.length > 0) {
             // 각 div의 텍스트 내용을 추출하여 줄바꿈으로 연결
             codeText = Array.from(lineDivs)
@@ -77,9 +81,18 @@ export function codeBlockPlugin(turndownService: TurndownService) {
                   .map(span => span.textContent || '')
                   .join('');
               })
-              .join('\n');
+              .join('\\n');
+          } else if (tableRows.length > 0) {
+            // 각 tr에서 hljs-ln-code 클래스를 가진 td의 내용을 추출
+            codeText = Array.from(tableRows)
+              .map(tr => {
+                const codeCell = tr.querySelector('td.hljs-ln-code');
+                // td 요소의 textContent를 직접 사용
+                return codeCell ? (codeCell.textContent || '') : '';
+              })
+              .join('\n'); // 줄바꿈 문자로 합침
           } else {
-            // 기존 방식으로 처리
+            // 기존 방식으로 처리 (div나 table 구조가 없을 때)
             const originalText = innerCode.textContent || '';
             const lines = originalText.split('\n')
               .filter(line => line.length > 0 || line.includes('\n'));
@@ -108,7 +121,7 @@ export function codeBlockPlugin(turndownService: TurndownService) {
         console.error('코드 블록 처리 오류:', error);
         // 오류 발생 시 원본 컨텐츠 반환
         return '\n```\n' + content + '\n```\n';
-      }``
+      }
     }
   });
 } 

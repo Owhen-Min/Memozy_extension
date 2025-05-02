@@ -28,6 +28,10 @@ module.exports = (env, argv) => {
           exclude: /node_modules/
         },
         {
+          test: /\.svg$/,
+          use: ['@svgr/webpack'], // SVG를 React 컴포넌트로 변환
+        },
+        {
           test: /\.css$/,
           use: ['style-loader', 'css-loader', 'postcss-loader']
         }

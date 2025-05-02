@@ -39,6 +39,7 @@
     "@babel/preset-react": "^7.26.3",
     "@babel/preset-typescript": "^7.27.0",
     "@pmmmwh/react-refresh-webpack-plugin": "^0.5.16",
+    "@svgr/webpack": "^8.1.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/chrome": "^0.0.315",
     "@types/jsdom": "^21.1.7",

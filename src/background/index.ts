@@ -1,6 +1,6 @@
 import { DiffDOM } from 'diff-dom';
 import * as htmlparser from 'htmlparser2';
-import { CapturedItem, MergeAction, Message, Response } from '../types';
+import { CapturedItem, MergeAction, Message, Response, ImageContent } from '../types';
 import { Node as HtmlParserNode, DataNode, Element as HtmlParserElement } from 'domhandler';
 
 // diff-dom 타입 직접 정의 (간소화 버전)
@@ -260,7 +260,7 @@ function mergeContent(
 }
 
 // 콘텐츠 스크립트에서 메시지 받기
-chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: Message & { markdownContent?: string }, sender, sendResponse) => {
   console.log(`[Background] Received message: Action=${message?.action}, Sender=${sender?.tab?.id || 'N/A'}`);
 
   // 메시지 로깅
@@ -488,59 +488,70 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
     }
     else if (message.action === "downloadItem") {
       const item = message.item as CapturedItem;
-      
-      if (item.type === 'text' || item.type === 'html') {
+      const markdownContent = message.markdownContent; // Get pre-converted Markdown
+
+      if ((item.type === 'text' || item.type === 'html') && typeof markdownContent === 'string') { // Check for markdownContent
         try {
-          const blob = new Blob([item.content as string], {type: item.type === 'html' ? 'text/html' : 'text/plain'});
+          // Use the pre-converted markdownContent directly
+          const blob = new Blob([markdownContent], { type: 'text/markdown' }); // Use markdown MIME type
           const fileReader = new FileReader();
           fileReader.onloadend = function() {
             const dataUrl = fileReader.result as string;
-            const safeTitle = item.pageTitle.replace(/[^a-zA-Z0-9가-힣\s]/g, '_').substring(0, 30);
-            const extension = item.type === 'html' ? 'html' : 'txt';
+            const safeTitle = (item.pageTitle || 'untitled').replace(/[^a-zA-Z0-9가-힣\s]/g, '_').substring(0, 30);
+            const extension = 'md'; // Set extension to md
             chrome.downloads.download({
               url: dataUrl,
-              filename: `${safeTitle}-${item.id}.${extension}`
+              filename: `${safeTitle}-${item.id}.${extension}` // Use .md extension
             }, (downloadId) => {
               if (chrome.runtime.lastError) {
-                console.error('다운로드 오류:', chrome.runtime.lastError);
-                sendResponse({success: false, error: chrome.runtime.lastError.message} as Response);
+                console.error('Markdown 다운로드 오류:', chrome.runtime.lastError);
+                sendResponse({ success: false, error: chrome.runtime.lastError.message } as Response);
               } else {
-                sendResponse({success: true, downloadId: downloadId} as Response);
+                sendResponse({ success: true, downloadId: downloadId } as Response);
               }
             });
           };
-          
+
           fileReader.onerror = function() {
             console.error('파일 읽기 오류');
-            sendResponse({success: false, error: 'FileReader 오류'} as Response);
+            sendResponse({ success: false, error: 'FileReader 오류' } as Response);
           };
-          
+
           fileReader.readAsDataURL(blob);
         } catch (error: any) {
-          console.error('텍스트 다운로드 오류:', error);
-          sendResponse({success: false, error: error.message} as Response);
+          console.error('Markdown 다운로드 오류:', error);
+          sendResponse({ success: false, error: error.message } as Response);
         }
       } else if (item.type === 'image') {
+        // Image download logic remains the same
         try {
-          const imgContent = item.content as any; // 타입 캐스팅
+          const imgContent = item.content as ImageContent;
+          const extension = imgContent.type ? imgContent.type.split('/')[1] : 'png';
+          const safeTitle = (item.pageTitle || 'image').replace(/[^a-zA-Z0-9가-힣\s]/g, '_').substring(0, 30);
+          const filename = imgContent.name ? `${safeTitle}-${imgContent.name}` : `${safeTitle}-${item.id}.${extension}`;
+
           chrome.downloads.download({
             url: imgContent.dataUrl,
-            filename: imgContent.name || `image-${item.id}.${imgContent.type.split('/')[1]}`
+            filename: filename
           }, (downloadId) => {
             if (chrome.runtime.lastError) {
-              console.error('다운로드 오류:', chrome.runtime.lastError);
-              sendResponse({success: false, error: chrome.runtime.lastError.message} as Response);
+              console.error('이미지 다운로드 오류:', chrome.runtime.lastError);
+              sendResponse({ success: false, error: chrome.runtime.lastError.message } as Response);
             } else {
-              sendResponse({success: true, downloadId: downloadId} as Response);
+              sendResponse({ success: true, downloadId: downloadId } as Response);
             }
           });
         } catch (error: any) {
           console.error('이미지 다운로드 오류:', error);
-          sendResponse({success: false, error: error.message} as Response);
+          sendResponse({ success: false, error: error.message } as Response);
         }
-      } 
-      
-      
+      } else {
+          // Handle cases where markdownContent is missing for text/html types
+          console.error('다운로드할 Markdown 콘텐츠가 없거나 타입이 잘못되었습니다.', item.type);
+          sendResponse({success: false, error: 'Markdown 콘텐츠 누락 또는 잘못된 타입'} as Response)
+      }
+
+
       return true; // 비동기 응답
     }
     else if (message.action === "extractContent") {
