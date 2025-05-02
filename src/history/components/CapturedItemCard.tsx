@@ -26,6 +26,7 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
 }) => {
   const [showScrollButton, setShowScrollButton] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const groupContainerRef = useRef<HTMLDivElement | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(() => typeof item.content === 'string' ? item.content : '');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -45,18 +46,19 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
   turndownService.use(listPlugin);
 
   useEffect(() => {
+    // 컴포넌트 마운트 시 부모 그룹 컨테이너 찾기
+    if (cardRef.current) {
+      groupContainerRef.current = cardRef.current.closest('.group-container');
+    }
+
     const handleScroll = () => {
-      if (cardRef.current) {
-        const container = cardRef.current.closest('.overflow-y-auto');
-        if (container) {
-          const { top } = cardRef.current.getBoundingClientRect();
-          const containerTop = container.getBoundingClientRect().top;
-          setShowScrollButton(top - containerTop < -100);
-        }
+      if (groupContainerRef.current) {
+        const scrollTop = groupContainerRef.current.scrollTop;
+        setShowScrollButton(scrollTop > 200); // 200px 이상 스크롤 되었을 때 버튼 표시
       }
     };
 
-    const container = cardRef.current?.closest('.overflow-y-auto');
+    const container = groupContainerRef.current;
     if (container) {
       container.addEventListener('scroll', handleScroll);
       return () => container.removeEventListener('scroll', handleScroll);
@@ -71,14 +73,11 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
   }, [isEditing, editContent]);
 
   const scrollToTop = () => {
-    if (cardRef.current) {
-      const container = cardRef.current.closest('.overflow-y-auto');
-      if (container) {
-        container.scrollTo({
-          top: 0,
-          behavior: 'smooth'
-        });
-      }
+    if (groupContainerRef.current) {
+      groupContainerRef.current.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
     }
   };
 
@@ -125,7 +124,7 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
         }
         
         return (
-          <div className="card-content text-sm">
+          <div className="card-content relative text-sm">
             <div className="prose prose-slate dark:prose-invert max-w-none overflow-auto">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
@@ -240,13 +239,12 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
   };
 
   return (
-    <div ref={cardRef} className="card flex flex-col gap-2 my-2 border-b border-light-gray pb-2 relative">
-      <div className="card-header flex justify-between items-center sticky top-0 bg-white z-10 py-2 border-b border-light-gray mb-2">
+    <div ref={cardRef} className="card flex flex-col gap-2 border-b border-light-gray pb-2">
+      <div className="card-header flex h-18 justify-between items-center sticky top-18 bg-white z-10 py-2 border-b border-light-gray">
         <div className="flex gap-2">
           <span className="timestamp text-base">
             {formatDate(item.timestamp)}
           </span>
-          
           <span className="item-type text-base">
             {item.type === 'text' ? '텍스트' : 
             item.type === 'image' ? '이미지' : '알 수 없음'}
@@ -308,28 +306,23 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
           </div>
         </div>
       ) : (
-        <>
-          {showScrollButton && (
-            <button
-              onClick={scrollToTop}
-              className="fixed bottom-10 right-10 bg-main text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors z-50"
-              title="위로 이동"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-              </svg>
-            </button>
-          )}
-          <div className="card-footer">
-              {showUrl && (
-                <div className="card-meta text-base">
-                  {item.pageUrl}
-                </div>
-              )}
-          </div>
-          
+        <div className="relative">
           {renderContent()}
-        </>
+
+          {showScrollButton && (
+            <div className="sticky bottom-4 z-20 flex justify-end px-4 pointer-events-none">
+              <button
+                onClick={scrollToTop}
+                className="bg-main text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors pointer-events-auto"
+                title="위로 이동"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                </svg>
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
