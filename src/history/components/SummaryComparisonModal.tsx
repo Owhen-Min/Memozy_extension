@@ -1,12 +1,19 @@
-import { useState, useEffect } from 'react';
-import CustomReactMarkdown from '../../lib/react-markdown/CustomReactMarkdown';
-import { useApiMutation } from '../../hooks/useApi';
-import { SummarySourceRequest, SummarySourceResponse } from '../../types/summary';
+import { useState, useEffect } from "react";
+import CustomReactMarkdown from "../../lib/react-markdown/CustomReactMarkdown";
+import { useApiMutation } from "../../hooks/useApi";
+import {
+  SummarySourceRequest,
+  SummarySourceResponse,
+} from "../../types/summary";
 
 interface SummaryComparisonModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (summaryContent: string, summaryType: 'markdown' | 'ai') => void;
+  onSubmit: (
+    summaryContent: string,
+    summaryType: "markdown" | "ai",
+    summaryId: string
+  ) => void;
   markdownContent: string;
   pageUrl: string;
   pageTitle: string;
@@ -20,51 +27,96 @@ export default function SummaryComparisonModal({
   pageUrl,
   pageTitle,
 }: SummaryComparisonModalProps) {
-  const [aiSummary, setAiSummary] = useState<string>('');
-  const [selectedType, setSelectedType] = useState<'markdown' | 'ai' >('markdown');
+  const [aiSummary, setAiSummary] = useState<string>("");
+  const [selectedType, setSelectedType] = useState<"markdown" | "ai">(
+    "markdown"
+  );
 
   // API mutation 설정
-  const { mutate: generateSummary, isPending: isLoading } = useApiMutation<SummarySourceResponse, SummarySourceRequest>(
-    '/quiz-source',
-    {
-      onSuccess: (data) => {
-        if (data.data) {
-          setAiSummary(data.data.replace(/\\n/g, '\n'));
-        } else {
-          window.alert('요약 생성 중 오류 발생:' + data.errorMsg);
-          // TODO: 사용자에게 오류 메시지 표시 (예: 토스트 알림)
-        }
-      },
-      onError: (error) => {
-        window.alert('요약 생성 중 오류 발생:' + error);
-        // TODO: 사용자에게 오류 메시지 표시
-      },
-    }
-  );
+  const { mutate: generateSummary, isPending: isLoading } = useApiMutation<
+    SummarySourceResponse,
+    SummarySourceRequest
+  >("/quiz-source/summary", {
+    onSuccess: (data) => {
+      if (data.data) {
+        setAiSummary(data.data);
+      } else {
+        window.alert("요약 생성 중 오류 발생:" + data.errorMsg);
+      }
+    },
+    onError: (error) => {
+      window.alert("요약 생성 중 오류 발생:" + error);
+    },
+  });
+
+  // 저장 API mutation 설정
+  const { mutate: saveSummary, isPending: isSaving } = useApiMutation<
+    { success: boolean; data: string },
+    SummarySourceRequest
+  >("/quiz-source", {
+    onSuccess: (response) => {
+      if (response.success && response.data) {
+        onSubmit(
+          selectedType === "markdown" ? markdownContent : aiSummary,
+          selectedType,
+          response.data
+        );
+      } else {
+        window.alert("요약 저장 중 오류가 발생했습니다.");
+      }
+    },
+    onError: (error) => {
+      window.alert("요약 저장 중 오류가 발생했습니다: " + error);
+    },
+  });
 
   // 컴포넌트가 마운트되면 자동으로 요약 생성 시작
   useEffect(() => {
     if (isOpen && markdownContent && !aiSummary && !isLoading) {
-      // API 호출 시 개행을 \n으로 변환
       generateSummary({
         type: 0,
         title: pageTitle,
-        context: markdownContent.replace(/\n/g, '\\n'),
-        url: pageUrl
+        context: markdownContent,
+        url: pageUrl,
       });
     }
-  }, [isOpen, markdownContent, aiSummary, isLoading, generateSummary, pageTitle, pageUrl]);
+  }, [
+    isOpen,
+    markdownContent,
+    aiSummary,
+    isLoading,
+    generateSummary,
+    pageTitle,
+    pageUrl,
+  ]);
 
   if (!isOpen) return null;
 
+  const handleSave = () => {
+    const content = selectedType === "markdown" ? markdownContent : aiSummary;
+    saveSummary({
+      type: 0,
+      title: pageTitle,
+      context: content,
+      url: pageUrl,
+    });
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-lg p-6 w-full max-w-7xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-lg p-6 w-full max-w-7xl max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 className="text-xl font-bold mb-4">저장 방식 선택</h2>
         <p className="text-sm text-gray-600 mb-4">
-          원하시는 저장 방식을 선택해주세요. 왼쪽은 원본, 오른쪽은 AI가 요약한 내용입니다.
+          원하시는 저장 방식을 선택해주세요. 왼쪽은 원본, 오른쪽은 AI가 요약한
+          내용입니다.
         </p>
-        
+
         <div className="flex gap-4 flex-grow min-h-0">
           {/* Markdown 변환본 */}
           <div className="w-1/2 flex flex-col">
@@ -72,19 +124,17 @@ export default function SummaryComparisonModal({
               <h3 className="font-medium">Markdown 변환</h3>
               <button
                 className={`px-3 py-1 rounded ${
-                  selectedType === 'markdown' 
-                    ? 'bg-blue-500 text-white' 
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  selectedType === "markdown"
+                    ? "bg-blue-500 text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
-                onClick={() => setSelectedType('markdown')}
+                onClick={() => setSelectedType("markdown")}
               >
                 선택
               </button>
             </div>
             <div className="flex-1 border rounded p-4 overflow-y-auto overflow-x-auto bg-gray-50">
-              <CustomReactMarkdown>
-                {markdownContent}
-              </CustomReactMarkdown>
+              <CustomReactMarkdown>{markdownContent}</CustomReactMarkdown>
             </div>
           </div>
 
@@ -94,11 +144,11 @@ export default function SummaryComparisonModal({
               <h3 className="font-medium">AI 요약</h3>
               <button
                 className={`px-3 py-1 rounded ${
-                  selectedType === 'ai' 
-                    ? 'bg-blue-500 text-white' 
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  selectedType === "ai"
+                    ? "bg-blue-500 text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
-                onClick={() => setSelectedType('ai')}
+                onClick={() => setSelectedType("ai")}
               >
                 선택
               </button>
@@ -113,7 +163,7 @@ export default function SummaryComparisonModal({
                 </div>
               ) : (
                 <CustomReactMarkdown>
-                  {aiSummary}
+                  {aiSummary.replace(/\\n/g, "\n")}
                 </CustomReactMarkdown>
               )}
             </div>
@@ -129,11 +179,13 @@ export default function SummaryComparisonModal({
             취소
           </button>
           <button
-            onClick={() => onSubmit(selectedType === 'markdown' ? markdownContent : aiSummary, selectedType)}
+            onClick={handleSave}
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-            disabled={isLoading || (selectedType === 'ai' && !aiSummary)}
+            disabled={
+              isLoading || isSaving || (selectedType === "ai" && !aiSummary)
+            }
           >
-            선택된 내용 저장
+            {isSaving ? "저장 중..." : "선택된 내용 저장"}
           </button>
         </div>
       </div>

@@ -1,13 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Memozy",
-  "version": "1.0",
+  "version": "1.0.1",
   "description": "기억을 쉽게 정착시켜주는 학습 도구",
   "permissions": ["storage", "downloads", "tabs", "activeTab", "identity"],
-  "oauth2": { 
-        "client_id": "dfghbgncpceajjhnkmfinhmdafmkglak", 
-        "scopes": ["openid", "email", "profile"]
-      },
+  "oauth2": {
+    "client_id": "dfghbgncpceajjhnkmfinhmdafmkglak",
+    "scopes": ["openid", "email", "profile"]
+  },
   "host_permissions": ["*://memozy.site/*"],
   "icons": {
     "16": "icon16.png",
@@ -49,4 +49,4 @@
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
   }
-} 
+}
