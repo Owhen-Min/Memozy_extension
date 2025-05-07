@@ -243,6 +243,10 @@ document.addEventListener("mouseup", async (e) => {
     const domPath = getDomPath(commonAncestor);
     console.log("DOM 경로:", domPath);
 
+    // 현재 사이트의 favicon URL 가져오기
+    const faviconUrl = getFaviconUrl();
+    console.log("Favicon URL:", faviconUrl);
+
     // Send only HTML to background
     try {
       await sendMessageToBackground({
@@ -252,6 +256,7 @@ document.addEventListener("mouseup", async (e) => {
         meta: {
           originalType: "html",
           domPath: domPath,
+          favicon: faviconUrl,
         },
       });
       console.log("HTML 텍스트 추출 및 저장 요청 성공 (DOM 경로 포함)");
@@ -304,6 +309,10 @@ document.addEventListener("dragstart", async (e) => {
       const imgNameMatch = imgElement.src.match(/([^/]+)\.(?:jpe?g|png|gif|bmp|webp)(?:\?.*)?$/i);
       const imgName = imgNameMatch ? imgNameMatch[1] : `image-${Date.now()}`;
 
+      // 현재 사이트의 favicon URL 가져오기
+      const faviconUrl = getFaviconUrl();
+      console.log("Favicon URL:", faviconUrl);
+
       // 안전한 메시지 전송 함수 사용
       try {
         await sendMessageToBackground({
@@ -316,6 +325,7 @@ document.addEventListener("dragstart", async (e) => {
           },
           meta: {
             format: "png",
+            favicon: faviconUrl,
           },
         });
         console.log("이미지 저장 성공");
@@ -427,6 +437,13 @@ function showNotification(itemOrMessage: CapturedItem | NotificationMessage) {
     isError ? 5000 : 3000
   ); // 에러는 5초, 나머지는 3초
 }
+const getFaviconUrl = () => {
+  // 우선 link[rel="icon"] 또는 link[rel*="icon"]을 찾음
+  const iconLink = document.querySelector('link[rel="icon"], link[rel*="icon"]') as HTMLLinkElement;
+  if (iconLink && iconLink.href) return iconLink.href;
+  // 없으면 기본 favicon 경로 시도
+  return `${location.origin}/favicon.ico`;
+};
 
 // 현재 페이지의 HTML 저장 후 텍스트 추출
 async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
@@ -518,11 +535,21 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
       if (rootContents && rootContents.length > 0) {
         // 가장 안쪽의 콘텐츠만 수집하는 함수
         const getInnermostContents = (element: Element): Element[] => {
+          // tbody[data-v-d16cf66c] 요소는 무시
+          if (element.tagName === "TBODY" && element.hasAttribute("data-v-d16cf66c")) {
+            return [];
+          }
+
           // 현재 요소의 직계 자식들 가져오기
           const directChildren = Array.from(element.children);
 
+          // tbody[data-v-d16cf66c] 요소 필터링
+          const filteredChildren = directChildren.filter(
+            (child) => !(child.tagName === "TBODY" && child.hasAttribute("data-v-d16cf66c"))
+          );
+
           // 직계 자식들이 모두 data-v-d16cf66c를 가진 div인지 확인
-          const hasOnlyDataVDivs = directChildren.some(
+          const hasOnlyDataVDivs = filteredChildren.some(
             (child) => child.tagName === "DIV" && child.hasAttribute("data-v-d16cf66c")
           );
 
@@ -534,9 +561,16 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
           .flatMap((root) => getInnermostContents(root))
           .map((content) => content.outerHTML);
 
-        const html = contents.join("\n\n");
+        html = contents.join("\n\n");
       } else {
         return { success: false, error: "나무위키 글 안에서 저장 버튼을 눌러주세요." };
+      }
+    } else if (hostname.startsWith("notion.so") || hostname.startsWith("euid.notion.site")) {
+      const content = document.querySelectorAll(".layout-content");
+      if (content) {
+        html = Array.from(content)
+          .map((content) => content.outerHTML)
+          .join("\n\n");
       }
     }
 
@@ -586,12 +620,12 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
     console.log("Original HTML 추출 완료, 백그라운드로 전송");
     console.log("Original HTML length:", html.length);
 
-    // Send only HTML to background
+    const faviconUrl = getFaviconUrl();
     const response: ExtensionResponse = await sendMessageToBackground({
       action: "contentCaptured",
       type: "text",
-      content: html, // Only original HTML
-      meta: { originalType: "html", saveType: "full" },
+      content: html,
+      meta: { originalType: "html", saveType: "full", favicon: faviconUrl },
     });
 
     // 응답 처리 및 알림 표시 (옵셔널 체이닝 사용)

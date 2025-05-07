@@ -29,6 +29,7 @@ export interface MetaData {
   };
   domPath?: string;
   originalHtml?: string;
+  favicon?: string;
 }
 
 // 캡처된 아이템 인터페이스
@@ -40,8 +41,10 @@ export interface CapturedItem {
   pageUrl: string;
   timestamp: Date | string;
   meta?: MetaData;
-  summaryId?: string;
-  problemId?: string;
+  summaryId?: number;
+  summaryContent?: string;
+  summaryType?: "markdown" | "ai";
+  problemId?: number;
 }
 
 // 알림 인터페이스
@@ -82,6 +85,7 @@ export interface Message {
   isHtmlMode?: boolean;
   itemId?: number; // 콘텐츠 추출을 위한 아이템 ID
   url?: string; // iframe URL을 위한 속성
+  favicon?: string;
 }
 
 // 응답 인터페이스

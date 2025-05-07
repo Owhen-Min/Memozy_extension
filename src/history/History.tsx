@@ -1,14 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
-import { CapturedItem, ItemType } from "../types";
-import CapturedItemCard from "./components/CapturedItemCard";
 import "../Global.css";
-import { useNavigate } from "react-router-dom";
-import CreateProblemModal, { ProblemCreationData } from "./components/CreateProblemModal";
-import { useAuth } from "../hooks/useAuth";
 import ArrowDown from "../svgs/arrow-down.svg";
 import ArrowRight from "../svgs/arrow-right.svg";
+import CapturedItemCard from "./components/CapturedItemCard";
 import CreateSummaryModal from "./components/CreateSummaryModal";
+import CreateProblemModal, { ProblemCreationData } from "./components/CreateProblemModal";
+import { CapturedItem, ItemType } from "../types";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
 import customTurndown from "../lib/turndown/customTurndown";
+import api from "../hooks/useApi";
 
 // --- Helper functions for DOM path comparison ---
 
@@ -391,6 +392,7 @@ export default function History() {
 
     // 이미 요약이 있는 경우 바로 이동
     if (itemsInGroup[0].summaryId) {
+      console.log("Navigating to summaryId:", itemsInGroup[0].summaryId);
       navigate(`/summary/${itemsInGroup[0].summaryId}`);
       return;
     }
@@ -454,10 +456,10 @@ export default function History() {
   };
 
   const handleProblemModalSubmit = async (data: ProblemCreationData) => {
+    setIsProblemModalOpen(false);
+    setSelectedItemForProblem(null);
     if (!selectedItemForProblem || !authToken) {
       alert("인증 토큰이 없거나 선택된 아이템이 없습니다.");
-      setIsProblemModalOpen(false);
-      setSelectedItemForProblem(null);
       return;
     }
     const pageUrl = selectedItemForProblem.pageUrl;
@@ -471,16 +473,28 @@ export default function History() {
         "토큰:",
         authToken ? "있음" : "없음"
       );
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      const problemId = "problem_" + Date.now();
-      const currentItemsResult = await chrome.storage.local.get(["savedItems"]);
-      const currentItems = (currentItemsResult.savedItems || []) as CapturedItem[];
-      const updatedItems = currentItems.map((savedItem) =>
-        savedItem.pageUrl === pageUrl ? { ...savedItem, problemId } : savedItem
-      );
-      await chrome.storage.local.set({ savedItems: updatedItems });
-      setIsProblemModalOpen(false);
-      setSelectedItemForProblem(null);
+
+      // api 인스턴스 직접 사용
+      const { data: result } = await api.post(`/quiz/${selectedItemForProblem.summaryId}`, {
+        quizCount: data.quizCount,
+        quizTypes: data.quizTypes,
+      });
+      console.log("result: ", result);
+      if (result.success) {
+        const problemId = selectedItemForProblem.summaryId;
+        const currentItemsResult = await chrome.storage.local.get(["savedItems"]);
+        const currentItems = (currentItemsResult.savedItems || []) as CapturedItem[];
+        const updatedItems = currentItems.map((savedItem) =>
+          savedItem.pageUrl === pageUrl ? { ...savedItem, problemId } : savedItem
+        );
+        await chrome.storage.local.set({ savedItems: updatedItems });
+      } else if (result.errorCode === "QUIZ400") {
+        alert(
+          `${selectedItemForProblem.pageTitle} \n문제 생성 중 오류가 발생했습니다. \nMemozy는 현재 IT&개발자에 관련된 내용만 취급하고 있습니다.`
+        );
+      } else {
+        alert(result.errorMsg);
+      }
     } catch (error) {
       console.error("문제 생성 오류:", error);
       alert("문제 생성 중 오류가 발생했습니다.");
@@ -609,6 +623,18 @@ export default function History() {
                     <span className="mr-1">
                       {expandedGroups === url ? <ArrowDown /> : <ArrowRight />}
                     </span>
+                    {/* favicon 표시 (있을 때만) */}
+                    {items[0]?.meta?.favicon && (
+                      <img
+                        src={items[0].meta.favicon}
+                        alt="favicon"
+                        className="w-5 h-5 mr-2 rounded"
+                        style={{ background: "#fff", border: "1px solid #eee" }}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                    )}
                     <span className="line-clamp-1">{groupTitle}</span>
                     <span className="ml-2 text-sm font-normal text-gray flex-shrink-0">
                       ({items.length})
@@ -714,6 +740,21 @@ export default function History() {
         })}
       </div>
 
+      {selectedGroupInfo && selectedItemGroupForSummary.length > 0 && (
+        <CreateSummaryModal
+          isOpen={isSummaryModalOpen}
+          onClose={() => {
+            setIsSummaryModalOpen(false);
+            setSelectedItemGroupForSummary([]);
+            setSelectedGroupInfo(null);
+          }}
+          onSubmit={handleSummaryModalSubmit}
+          items={selectedItemGroupForSummary}
+          pageUrl={selectedGroupInfo.url}
+          pageTitle={selectedGroupInfo.title}
+        />
+      )}
+
       {selectedItemForProblem && (
         <CreateProblemModal
           isOpen={isProblemModalOpen}
@@ -723,22 +764,6 @@ export default function History() {
           }}
           onSubmit={handleProblemModalSubmit}
           item={selectedItemForProblem}
-        />
-      )}
-
-      {/* 추가: 요약 모달 */}
-      {selectedGroupInfo && selectedItemGroupForSummary.length > 0 && (
-        <CreateSummaryModal
-          isOpen={isSummaryModalOpen}
-          onClose={() => {
-            setIsSummaryModalOpen(false);
-            setSelectedItemGroupForSummary([]);
-            setSelectedGroupInfo(null); // 모달 닫을 때 상태 초기화
-          }}
-          onSubmit={handleSummaryModalSubmit}
-          items={selectedItemGroupForSummary}
-          pageUrl={selectedGroupInfo.url} // url prop 전달
-          pageTitle={selectedGroupInfo.title} // title prop 전달
         />
       )}
     </div>

@@ -1,6 +1,21 @@
 import TurndownService from "turndown";
+import { extractContent } from "@wrtnlabs/web-content-extractor";
 
 export function listPlugin(turndownService: TurndownService) {
+  // 리스트 내부의 블록 요소(div)를 텍스트로 처리하기 위한 특수 규칙
+  turndownService.addRule("divInList", {
+    filter: function (node) {
+      // li 내부의 div만 처리
+      if (node.nodeName !== "DIV") return false;
+      const parent = node.parentNode;
+      return !!parent && parent.nodeName === "LI";
+    },
+    replacement: function (content, node, options) {
+      // div 내용을 그대로 반환하여 리스트 구조에 영향을 주지 않음
+      return content;
+    },
+  });
+
   // ul 태그 처리
   turndownService.addRule("unorderedList", {
     filter: "ul",
@@ -15,11 +30,29 @@ export function listPlugin(turndownService: TurndownService) {
         parent = parent.parentNode;
       }
 
-      // 각 li 항목 앞에 prefix 추가
-      const items = content.split("\n").filter((item) => item.trim() !== "");
-      const markdownItems = items.map((item) => prefix + item.trim());
+      // ul 요소의 직접적인 li 자식들만 가져오기
+      const listItems = Array.from(node.children).filter((child) => child.nodeName === "LI");
 
-      return "\n\n" + markdownItems.join("\n") + "\n\n";
+      // 각 li 항목을 수동으로 처리
+      const markdownItems = listItems.map((li) => {
+        // 내용 추출 (extractContent 함수 사용)
+        const htmlContent = li.innerHTML;
+        const extracted = extractContent(htmlContent);
+
+        // 추출된 콘텐츠를 마크다운으로 변환
+        // extractContent는 객체를 반환하므로 결과의 content 속성 또는 원본 HTML 사용
+        const contentToConvert =
+          extracted && typeof extracted === "object" && "content" in extracted
+            ? extracted.content
+            : htmlContent;
+
+        const itemContent = turndownService.turndown(contentToConvert);
+
+        // 접두사 추가 후 반환
+        return prefix + itemContent.trim();
+      });
+
+      return "\n" + markdownItems.join("\n") + "\n";
     },
   });
 
@@ -39,36 +72,63 @@ export function listPlugin(turndownService: TurndownService) {
         parent = parent.parentNode;
       }
 
-      const items = content.split("\n").filter((item) => item.trim() !== "");
-      const markdownItems = items.map((item) => {
+      // ol 요소의 직접적인 li 자식들만 가져오기
+      const listItems = Array.from(node.children).filter((child) => child.nodeName === "LI");
+
+      // 각 li 항목을 수동으로 처리
+      const markdownItems = listItems.map((li) => {
+        // 현재 접두사 계산
         const currentPrefix = prefix.replace(/^\s*/, "").startsWith("1.") ? `${counter}. ` : prefix;
-        const indentedPrefix = prefix.replace(/\d+\.\s*$/, currentPrefix); // 들여쓰기 유지
+        const indentedPrefix = prefix.replace(/\d+\.\s*$/, currentPrefix);
         counter++;
-        return indentedPrefix + item.trim();
+
+        // 내용 추출 (extractContent 함수 사용)
+        const htmlContent = li.innerHTML;
+        const extracted = extractContent(htmlContent);
+
+        // 추출된 콘텐츠를 마크다운으로 변환
+        // extractContent는 객체를 반환하므로 결과의 content 속성 또는 원본 HTML 사용
+        const contentToConvert =
+          extracted && typeof extracted === "object" && "content" in extracted
+            ? extracted.content
+            : htmlContent;
+
+        const itemContent = turndownService.turndown(contentToConvert);
+
+        // 접두사 추가 후 반환
+        return indentedPrefix + itemContent.trim();
       });
 
-      return "\n\n" + markdownItems.join("\n") + "\n\n";
+      return "\n" + markdownItems.join("\n") + "\n";
     },
   });
 
-  // li 태그 처리
+  // 중첩 리스트 내부의 li 항목을 처리하기 위한 규칙은 여전히 필요할 수 있음
   turndownService.addRule("listItem", {
     filter: "li",
     replacement: function (content, node) {
-      // 자식 노드의 텍스트만 가져오도록 처리
-      let textContent = "";
-      node.childNodes.forEach((child) => {
-        if (child.nodeType === Node.TEXT_NODE) {
-          textContent += child.textContent;
-        } else if (child.nodeType === Node.ELEMENT_NODE) {
-          // 중첩 리스트가 아닌 다른 요소(예: <p>) 처리
-          if (child.nodeName !== "UL" && child.nodeName !== "OL") {
-            textContent += (child as HTMLElement).innerText;
-          }
-        }
-      });
+      // 이 규칙은 ul/ol 규칙에서 직접 처리되지 않는 경우에만 사용됨
+      // 대부분의 경우 상위 규칙에서 처리되므로 여기서는 간단하게 처리
 
-      return textContent.trim(); // 앞뒤 공백 제거 후 반환
+      // 부모가 ul/ol이 아닌 경우 (예: 특수 목록)에만 실행
+      const parent = node.parentNode;
+      if (!parent || (parent.nodeName !== "UL" && parent.nodeName !== "OL")) {
+        // 내용 추출 (extractContent 함수 사용)
+        const htmlContent = (node as HTMLElement).innerHTML;
+        const extracted = extractContent(htmlContent);
+
+        // 추출된 콘텐츠를 마크다운으로 변환
+        // extractContent는 객체를 반환하므로 결과의 content 속성 또는 원본 HTML 사용
+        const contentToConvert =
+          extracted && typeof extracted === "object" && "content" in extracted
+            ? extracted.content
+            : htmlContent;
+
+        return turndownService.turndown(contentToConvert);
+      }
+
+      // 표준 리스트의 경우 기본적으로 content를 반환 (상위 규칙에서 처리됨)
+      return content;
     },
   });
 }

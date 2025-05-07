@@ -9,9 +9,8 @@ interface CreateProblemModalProps {
 }
 
 export interface ProblemCreationData {
-  numProblems: number;
-  contentTypes: string[];
-  questionTypes: string[];
+  quizCount: number;
+  quizTypes: string[];
 }
 
 export default function CreateProblemModal({
@@ -20,20 +19,13 @@ export default function CreateProblemModal({
   onSubmit,
   item,
 }: CreateProblemModalProps) {
-  const [numProblems, setNumProblems] = useState<number>(5);
-  const [contentTypes, setContentTypes] = useState<string[]>(["text", "html"]);
-  const [questionTypes, setQuestionTypes] = useState<string[]>(["multiple-choice", "ox"]);
+  const [quizCount, setQuizCount] = useState<number>(5);
+  const [quizTypes, setQuizTypes] = useState<string[]>(["사지선다"]);
 
   if (!isOpen) return null;
 
-  const handleContentTypeChange = (type: string) => {
-    setContentTypes((prev) =>
-      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
-    );
-  };
-
   const handleQuestionTypeChange = (type: string) => {
-    setQuestionTypes((prev) =>
+    setQuizTypes((prev) =>
       prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
     );
   };
@@ -41,9 +33,8 @@ export default function CreateProblemModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
-      numProblems,
-      contentTypes,
-      questionTypes,
+      quizCount,
+      quizTypes,
     });
   };
 
@@ -58,8 +49,8 @@ export default function CreateProblemModal({
           <div className="mb-4">
             <label className="block text-lg font-medium mb-2">생성할 문제 수</label>
             <select
-              value={numProblems}
-              onChange={(e) => setNumProblems(Number(e.target.value))}
+              value={quizCount}
+              onChange={(e) => setQuizCount(Number(e.target.value))}
               className="w-full p-2 text-base border rounded"
             >
               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
@@ -74,9 +65,9 @@ export default function CreateProblemModal({
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => handleQuestionTypeChange("multiple-choice")}
+                // onClick={() => handleQuestionTypeChange("사지선다")}
                 className={`px-3 py-1 rounded border ${
-                  questionTypes.includes("multiple-choice")
+                  quizTypes.includes("사지선다")
                     ? "bg-blue-500 text-white border-blue-500"
                     : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
                 }`}
@@ -85,9 +76,11 @@ export default function CreateProblemModal({
               </button>
               <button
                 type="button"
-                onClick={() => handleQuestionTypeChange("ox")}
-                className={`px-3 py-1 rounded border ${
-                  questionTypes.includes("ox")
+                disabled={true}
+                title="추후 업데이트 예정입니다."
+                onClick={() => handleQuestionTypeChange("OX퀴즈")}
+                className={`px-3 py-1 rounded border disabled:opacity-50 ${
+                  quizTypes.includes("OX퀴즈")
                     ? "bg-blue-500 text-white border-blue-500"
                     : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
                 }`}
@@ -96,9 +89,11 @@ export default function CreateProblemModal({
               </button>
               <button
                 type="button"
-                onClick={() => handleQuestionTypeChange("short-answer")}
-                className={`px-3 py-1 rounded border ${
-                  questionTypes.includes("short-answer")
+                disabled={true}
+                title="추후 업데이트 예정입니다."
+                onClick={() => handleQuestionTypeChange("단답형")}
+                className={`px-3 py-1 rounded border disabled:opacity-50 ${
+                  quizTypes.includes("단답형")
                     ? "bg-blue-500 text-white border-blue-500"
                     : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
                 }`}
@@ -119,6 +114,7 @@ export default function CreateProblemModal({
             <button
               type="submit"
               className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              onClick={handleSubmit}
             >
               생성하기
             </button>

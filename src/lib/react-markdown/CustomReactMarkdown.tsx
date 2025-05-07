@@ -2,6 +2,7 @@ import ReactMarkdown, { Options as ReactMarkdownOptions } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
+import rehypeRaw from "rehype-raw";
 
 // CustomReactMarkdownProps 정의: ReactMarkdownOptions를 확장하고 children을 필수로 만듦
 interface CustomReactMarkdownProps extends Omit<ReactMarkdownOptions, "children"> {
@@ -12,6 +13,7 @@ const CustomReactMarkdown: React.FC<CustomReactMarkdownProps> = ({ children, ...
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
+      rehypePlugins={[rehypeRaw]}
       components={{
         // 코드 블록 커스텀 렌더링
         code({ node, className, children: codeChildren, ...props }) {
@@ -73,6 +75,37 @@ const CustomReactMarkdown: React.FC<CustomReactMarkdownProps> = ({ children, ...
               {...props}
             />
           );
+        },
+        // 헤딩 태그 커스텀 렌더링
+        h1({ node, ...props }) {
+          return (
+            <h1 className="text-2xl font-bold my-6 pb-2 border-b border-gray-200" {...props} />
+          );
+        },
+        h2({ node, ...props }) {
+          return (
+            <h2 className="text-xl font-semibold my-5 pb-2 border-b border-gray-200" {...props} />
+          );
+        },
+        h3({ node, ...props }) {
+          return <h3 className="text-lg font-semibold my-4" {...props} />;
+        },
+        h4({ node, ...props }) {
+          return <h4 className="text-lg font-semibold my-3" {...props} />;
+        },
+        h5({ node, ...props }) {
+          return <h5 className="text-base font-semibold my-2" {...props} />;
+        },
+        h6({ node, ...props }) {
+          return <h6 className="text-base font-semibold my-1" {...props} />;
+        },
+        // 기본 텍스트(문단) 커스텀 렌더링
+        p({ node, ...props }) {
+          return <p className="text-base my-4" {...props} />;
+        },
+        // 링크(a 태그) 커스텀 렌더링
+        a({ node, ...props }) {
+          return <a className="text-gray-500 hover:text-gray-700 underline" {...props} />;
         },
         // 다른 커스텀 렌더러가 필요하면 여기에 추가
         ...(rest.components || {}), // 기존 컴포넌트 오버라이드 허용

@@ -63,12 +63,10 @@ export default function CreateSummaryModal({
     }
 
     // 선택된 항목들을 Markdown으로 변환
-    // ... existing code ...
     const markdownParts = selectedItems.map((item) => {
       if (item.type === "image") {
         return `![캡처된 이미지](${(item.content as ImageContent).dataUrl})\\n`;
       } else if (typeof item.content === "string") {
-        // turndown으로 변환된 마크다운의 개행을 \\n으로 변경
         return turndownService.turndown(item.content);
       }
       return "";

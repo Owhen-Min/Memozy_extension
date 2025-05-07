@@ -101,7 +101,7 @@ export default function SummaryComparisonModal({
 
         <div className="flex gap-4 flex-grow min-h-0">
           {/* Markdown 변환본 */}
-          <div className="w-1/2 flex flex-col">
+          <div className="w-1/2 flex flex-col" onClick={() => setSelectedType("markdown")}>
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-medium">Markdown 변환</h3>
               <button
@@ -110,7 +110,6 @@ export default function SummaryComparisonModal({
                     ? "bg-blue-500 text-white"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
-                onClick={() => setSelectedType("markdown")}
               >
                 선택
               </button>
@@ -121,7 +120,7 @@ export default function SummaryComparisonModal({
           </div>
 
           {/* AI 요약본 */}
-          <div className="w-1/2 flex flex-col">
+          <div className="w-1/2 flex flex-col" onClick={() => setSelectedType("ai")}>
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-medium">AI 요약</h3>
               <button
