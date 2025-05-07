@@ -1,8 +1,8 @@
 // 캡처된 아이템 타입
-export type ItemType = 'text' | 'html' | 'image' | 'error';
+export type ItemType = "text" | "html" | "image" | "error";
 
 // 알림 타입
-export type NotificationType = 'success' | 'error' | 'info' | 'warning';
+export type NotificationType = "success" | "error" | "info" | "warning";
 
 // 이미지 콘텐츠 인터페이스
 export interface ImageContent {
@@ -12,12 +12,12 @@ export interface ImageContent {
 }
 
 // 병합 전략 타입 정의
-export type MergeAction = 'replace' | 'append' | 'prepend' | 'none';
+export type MergeAction = "replace" | "append" | "prepend" | "none";
 
 // 메타데이터 인터페이스
 export interface MetaData {
   format?: string;
-  saveType?: 'full' | 'iframe' | 'full_with_iframes' | 'error';
+  saveType?: "full" | "iframe" | "full_with_iframes" | "error";
   iframeIndex?: number;
   combinedContent?: boolean;
   merged?: boolean;
@@ -52,24 +52,24 @@ export interface Notification {
 }
 
 // 메시지 액션 타입
-export type MessageAction = 
-  | 'startCapture'
-  | 'stopCapture'
-  | 'savingComplete'
-  | 'showNotification'
-  | 'updateCapturingState'
-  | 'saveFullHtml'
-  | 'saveIframesHtml'
-  | 'toggleCapturing'
-  | 'toggleHtmlMode'
-  | 'contentScriptReady'
-  | 'contentScriptCheck'
-  | 'contentCaptured'
-  | 'openHistoryPage'
-  | 'downloadItem'
-  | 'extractContent'
-  | 'fetchIframeContent'
-  | 'generateAiSummary';
+export type MessageAction =
+  | "startCapture"
+  | "stopCapture"
+  | "savingComplete"
+  | "showNotification"
+  | "updateCapturingState"
+  | "saveFullHtml"
+  | "saveIframesHtml"
+  | "toggleCapturing"
+  | "toggleHtmlMode"
+  | "contentScriptReady"
+  | "contentScriptCheck"
+  | "contentCaptured"
+  | "openHistoryPage"
+  | "downloadItem"
+  | "extractContent"
+  | "fetchIframeContent"
+  | "generateAiSummary";
 
 // 메시지 인터페이스
 export interface Message {
@@ -92,7 +92,7 @@ export interface Response {
   downloadId?: number;
   extractedContent?: any;
   html?: string;
-  status?: 'ok' | 'skipped_duplicate' | 'item_updated' | 'error';
+  status?: "ok" | "skipped_duplicate" | "item_updated" | "error";
   message?: string;
 }
 
@@ -101,4 +101,4 @@ export interface StorageState {
   savedItems: CapturedItem[];
   isCapturing: boolean;
   isHtmlMode: boolean;
-} 
+}

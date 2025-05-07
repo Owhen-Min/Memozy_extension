@@ -1,65 +1,65 @@
 @import "tailwindcss";
 
 @font-face {
-  font-family: 'Pretendard-Thin';
-  src: url('./fonts/Pretendard-Thin.woff') format('woff');
+  font-family: "Pretendard-Thin";
+  src: url("./fonts/Pretendard-Thin.woff") format("woff");
 }
 
 @font-face {
-  font-family: 'Pretendard-ExtraLight';
-  src: url('./fonts/Pretendard-ExtraLight.woff') format('woff');
+  font-family: "Pretendard-ExtraLight";
+  src: url("./fonts/Pretendard-ExtraLight.woff") format("woff");
 }
 
 @font-face {
-  font-family: 'Pretendard-Light';
-  src: url('./fonts/Pretendard-Light.woff') format('woff');
+  font-family: "Pretendard-Light";
+  src: url("./fonts/Pretendard-Light.woff") format("woff");
 }
 
 @font-face {
-  font-family: 'Pretendard-Regular';
-  src: url('./fonts/Pretendard-Regular.woff') format('woff');
+  font-family: "Pretendard-Regular";
+  src: url("./fonts/Pretendard-Regular.woff") format("woff");
 }
 
 @font-face {
-  font-family: 'Pretendard-Medium';
-  src: url('./fonts/Pretendard-Medium.woff') format('woff');
+  font-family: "Pretendard-Medium";
+  src: url("./fonts/Pretendard-Medium.woff") format("woff");
 }
 
 @font-face {
-  font-family: 'Pretendard-SemiBold';
-  src: url('./fonts/Pretendard-SemiBold.woff') format('woff');
+  font-family: "Pretendard-SemiBold";
+  src: url("./fonts/Pretendard-SemiBold.woff") format("woff");
 }
 
 @font-face {
-  font-family: 'Pretendard-Bold';
-  src: url('./fonts/Pretendard-Bold.woff') format('woff');
+  font-family: "Pretendard-Bold";
+  src: url("./fonts/Pretendard-Bold.woff") format("woff");
 }
 
 @font-face {
-  font-family: 'Pretendard-ExtraBold';
-  src: url('./fonts/Pretendard-ExtraBold.woff') format('woff');
+  font-family: "Pretendard-ExtraBold";
+  src: url("./fonts/Pretendard-ExtraBold.woff") format("woff");
 }
 
 @font-face {
-  font-family: 'Pretendard-Black';
-  src: url('./fonts/Pretendard-Black.woff') format('woff');
+  font-family: "Pretendard-Black";
+  src: url("./fonts/Pretendard-Black.woff") format("woff");
 }
 
 @theme {
-  --color-level1: #EAF1FF;
-  --color-level2: #D6E5FF;
-  --color-level3: #91BAFF;
-  --color-level4: #3E6FFA;
-  --color-level5: #191FD9;
+  --color-level1: #eaf1ff;
+  --color-level2: #d6e5ff;
+  --color-level3: #91baff;
+  --color-level4: #3e6ffa;
+  --color-level5: #191fd9;
   --color-level6: #002086;
-  --color-main: #1A73E8;
-  --color-sub: #F5F5F5;
-  --color-success: #4CAF50;
-  --color-error: #DC3545;
-  --color-warning: #FFC107;
+  --color-main: #1a73e8;
+  --color-sub: #f5f5f5;
+  --color-success: #4caf50;
+  --color-error: #dc3545;
+  --color-warning: #ffc107;
   --color-dark: #333333;
-  --color-gray: #7B7B7B;
-  --color-light-gray: #EEEEEE;
+  --color-gray: #7b7b7b;
+  --color-light-gray: #eeeeee;
 }
 
 /* 스크롤바 숨김 */
@@ -77,59 +77,63 @@
 }
 
 * {
-  font-family: 'Pretendard', sans-serif;
+  font-family: "Pretendard", sans-serif;
 }
 
 /* 폰트 웨이트 클래스 */
 .font-thin {
-  font-family: 'Pretendard-Thin', sans-serif;
+  font-family: "Pretendard-Thin", sans-serif;
 }
 
 .font-extralight {
-  font-family: 'Pretendard-ExtraLight', sans-serif;
+  font-family: "Pretendard-ExtraLight", sans-serif;
 }
 
 .font-light {
-  font-family: 'Pretendard-Light', sans-serif;
+  font-family: "Pretendard-Light", sans-serif;
 }
 
 * {
-  font-family: 'Pretendard-Regular', sans-serif;
+  font-family: "Pretendard-Regular", sans-serif;
 }
 
 .font-medium {
-  font-family: 'Pretendard-Medium', sans-serif;
+  font-family: "Pretendard-Medium", sans-serif;
 }
 
 .font-semibold {
-  font-family: 'Pretendard-SemiBold', sans-serif;
+  font-family: "Pretendard-SemiBold", sans-serif;
 }
 
 .font-bold {
-  font-family: 'Pretendard-Bold', sans-serif;
+  font-family: "Pretendard-Bold", sans-serif;
 }
 
 .font-extrabold {
-  font-family: 'Pretendard-ExtraBold', sans-serif;
+  font-family: "Pretendard-ExtraBold", sans-serif;
 }
 
 .font-black {
-  font-family: 'Pretendard-Black', sans-serif;
+  font-family: "Pretendard-Black", sans-serif;
 }
 
 /* 중요도별 폰트 스타일 */
-.h1, .h2, .h3 {
-  font-family: 'Pretendard-Bold', sans-serif;
+.h1,
+.h2,
+.h3 {
+  font-family: "Pretendard-Bold", sans-serif;
 }
 
-.h4, .h5, .h6 {
-  font-family: 'Pretendard-SemiBold', sans-serif;
+.h4,
+.h5,
+.h6 {
+  font-family: "Pretendard-SemiBold", sans-serif;
 }
 
 .caption {
-  font-family: 'Pretendard-Light', sans-serif;
+  font-family: "Pretendard-Light", sans-serif;
 }
 
 .overline {
-  font-family: 'Pretendard-ExtraLight', sans-serif;
+  font-family: "Pretendard-ExtraLight", sans-serif;
 }

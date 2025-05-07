@@ -1,32 +1,32 @@
-import { Message, CapturedItem, Response as ExtensionResponse } from '../types';
-import { extractContent } from '@wrtnlabs/web-content-extractor';
+import { Message, CapturedItem, Response as ExtensionResponse } from "../types";
+import { extractContent } from "@wrtnlabs/web-content-extractor";
 
 // NotificationMessage 타입 정의 추가
-type NotificationMessage = { 
-    type: 'info' | 'warning' | 'error'; 
-    message: string 
+type NotificationMessage = {
+  type: "info" | "warning" | "error";
+  message: string;
 };
 
-console.log('드래그 & 저장 콘텐츠 스크립트 로드됨');
+console.log("드래그 & 저장 콘텐츠 스크립트 로드됨");
 
 // 페이지에 스크립트가 로드되었음을 알림
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener("DOMContentLoaded", () => {
   // 초기 로드 시 5회 시도
   let retryCount = 0;
   const maxRetries = 5;
   const retryInterval = 1000; // 1초
 
   const sendReadyMessage = () => {
-    chrome.runtime.sendMessage({ action: 'contentScriptReady' }, (response) => {
+    chrome.runtime.sendMessage({ action: "contentScriptReady" }, (response) => {
       if (chrome.runtime.lastError) {
-        console.error('초기 메시지 전송 오류:', chrome.runtime.lastError);
+        console.error("초기 메시지 전송 오류:", chrome.runtime.lastError);
         if (retryCount < maxRetries) {
           retryCount++;
           console.log(`콘텐츠 스크립트 준비 메시지 재시도 (${retryCount}/${maxRetries})...`);
           setTimeout(sendReadyMessage, retryInterval);
         }
       } else {
-        console.log('콘텐츠 스크립트 준비 상태 전송됨');
+        console.log("콘텐츠 스크립트 준비 상태 전송됨");
       }
     });
   };
@@ -38,27 +38,27 @@ document.addEventListener('DOMContentLoaded', () => {
 // 안전한 메시지 전송 함수
 const sendMessageToBackground = (message: Message): Promise<ExtensionResponse> => {
   return new Promise((resolve, reject) => {
-    console.log('[Content Script] sendMessageToBackground 호출됨:', message.action);
+    console.log("[Content Script] sendMessageToBackground 호출됨:", message.action);
     try {
       chrome.runtime.sendMessage(message, (response: ExtensionResponse | undefined) => {
-        console.log('[Content Script] sendMessage 콜백 실행됨:', message.action, response);
+        console.log("[Content Script] sendMessage 콜백 실행됨:", message.action, response);
         if (chrome.runtime.lastError) {
-          console.error('[Content Script] 메시지 전송 오류:', chrome.runtime.lastError.message);
+          console.error("[Content Script] 메시지 전송 오류:", chrome.runtime.lastError.message);
           reject(chrome.runtime.lastError);
         } else if (response === undefined) {
-          console.error('[Content Script] 백그라운드 응답 없음 (undefined)');
-          reject(new Error('백그라운드 응답 없음'));
+          console.error("[Content Script] 백그라운드 응답 없음 (undefined)");
+          reject(new Error("백그라운드 응답 없음"));
         } else if (!response.success) {
-          console.error('[Content Script] 메시지 응답 실패:', response.error);
-          reject(new Error(response.error || '알 수 없는 오류'));
+          console.error("[Content Script] 메시지 응답 실패:", response.error);
+          reject(new Error(response.error || "알 수 없는 오류"));
         } else {
-          console.log('[Content Script] 메시지 응답 성공:', response);
+          console.log("[Content Script] 메시지 응답 성공:", response);
           resolve(response);
         }
       });
-      console.log('[Content Script] chrome.runtime.sendMessage 호출 완료 (비동기 콜백 대기)');
+      console.log("[Content Script] chrome.runtime.sendMessage 호출 완료 (비동기 콜백 대기)");
     } catch (error) {
-      console.error('[Content Script] 메시지 전송 중 예외 발생:', error);
+      console.error("[Content Script] 메시지 전송 중 예외 발생:", error);
       reject(error);
     }
   });
@@ -70,9 +70,9 @@ let isHtmlMode = true; // 항상 HTML 모드 활성화
 let lastCapturedContent: string | null = null;
 
 // 확장 설정 상태 초기화
-chrome.storage.local.get(['isCapturing'], (result) => {
+chrome.storage.local.get(["isCapturing"], (result) => {
   isCapturing = result.isCapturing || false;
-  console.log(`초기 캡처 상태: ${isCapturing ? '활성화' : '비활성화'}`);
+  console.log(`초기 캡처 상태: ${isCapturing ? "활성화" : "비활성화"}`);
   console.log(`HTML 모드: 항상 활성화`);
 });
 
@@ -80,84 +80,88 @@ chrome.storage.local.get(['isCapturing'], (result) => {
 chrome.storage.onChanged.addListener((changes) => {
   if (changes.isCapturing) {
     isCapturing = changes.isCapturing.newValue;
-    console.log(`캡처 상태 변경: ${isCapturing ? '활성화' : '비활성화'}`);
+    console.log(`캡처 상태 변경: ${isCapturing ? "활성화" : "비활성화"}`);
   }
 });
 
 // 메시지 리스너
 chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) => {
-  console.log('메시지 수신됨:', message.action);
+  console.log("메시지 수신됨:", message.action);
 
   // 캡처 상태 변경 메시지
-  if (message.action === 'toggleCapturing' || message.action === 'startCapture' || message.action === 'stopCapture') {
+  if (
+    message.action === "toggleCapturing" ||
+    message.action === "startCapture" ||
+    message.action === "stopCapture"
+  ) {
     isCapturing = message.isCapturing !== undefined ? message.isCapturing : !isCapturing;
-    console.log(`캡처 모드: ${isCapturing ? '활성화' : '비활성화'}`);
+    console.log(`캡처 모드: ${isCapturing ? "활성화" : "비활성화"}`);
     sendResponse({ success: true, received: true });
     return true;
   }
-  
+
   // HTML 모드 변경 메시지 - 항상 HTML 모드 유지
-  if (message.action === 'toggleHtmlMode' || message.action === 'updateCapturingState') {
+  if (message.action === "toggleHtmlMode" || message.action === "updateCapturingState") {
     if (message.isCapturing !== undefined) {
       isCapturing = message.isCapturing;
     }
     console.log(`HTML 모드: 항상 활성화`);
-    console.log(`캡처 모드: ${isCapturing ? '활성화' : '비활성화'}`);
+    console.log(`캡처 모드: ${isCapturing ? "활성화" : "비활성화"}`);
     sendResponse({ success: true, received: true });
     return true;
   }
-  
+
   // 전체 HTML 저장 메시지
-  if (message.action === 'saveFullHtml') {
+  if (message.action === "saveFullHtml") {
     try {
-      console.log('전체 HTML 저장 요청됨');
+      console.log("전체 HTML 저장 요청됨");
       // 현재 페이지 HTML만 저장
       savePageHtml()
         .then((result) => {
           // 결과 상태와 에러 메시지 그대로 전달
-          sendResponse({ 
-            success: result.success, 
-            error: result.error 
+          sendResponse({
+            success: result.success,
+            error: result.error,
           });
         })
-        .catch(error => {
-          console.error('페이지 HTML 저장 오류:', error);
+        .catch((error) => {
+          console.error("페이지 HTML 저장 오류:", error);
           sendResponse({ success: false, error: error.message });
         });
-      
+
       return true; // 비동기 응답을 위해 true 반환
     } catch (error: any) {
-      console.error('HTML 저장 처리 중 오류:', error);
+      console.error("HTML 저장 처리 중 오류:", error);
       sendResponse({ success: false, error: error.message });
       return true; // 비동기 응답을 위해 true 반환
     }
   }
-  
+
   // 저장 완료 메시지 (알림용)
-  if (message.action === 'savingComplete') {
+  if (message.action === "savingComplete") {
     try {
       showNotification(message.item as CapturedItem);
       sendResponse({ success: true });
     } catch (error: any) {
-      console.error('알림 표시 오류:', error);
+      console.error("알림 표시 오류:", error);
       sendResponse({ success: false, error: error.message });
     }
     return true; // 비동기 응답을 위해 true 반환
   }
-  
+
   // 콘텐츠 스크립트 준비 확인
-  if (message.action === 'contentScriptCheck') {
-    sendResponse({ 
-      success: true, 
-      ready: true, 
+  if (message.action === "contentScriptCheck") {
+    sendResponse({
+      success: true,
+      ready: true,
       isCapturing: isCapturing,
-      isHtmlMode: isHtmlMode
+      isHtmlMode: isHtmlMode,
     });
     return true; // 비동기 응답을 위해 true 반환
   }
 
   // 기본 응답
-  sendResponse({ success: false, error: '처리되지 않은 메시지 형식' });
+  sendResponse({ success: false, error: "처리되지 않은 메시지 형식" });
   return true; // 비동기 응답을 위해 true 반환
 });
 
@@ -173,7 +177,7 @@ function getDomPath(node: Node): string {
   }
 
   // 유효한 Element를 찾지 못하면 빈 문자열 반환
-  if (!element) return '';
+  if (!element) return "";
 
   const path: string[] = [];
   let currentElement: Element | null = element;
@@ -203,202 +207,225 @@ function getDomPath(node: Node): string {
     currentElement = currentElement.parentElement;
   }
   // 배열을 ' > '로 연결하여 최종 경로 반환
-  return path.join(' > ');
+  return path.join(" > ");
 }
 
 // 드래그 이벤트 처리 수정
-document.addEventListener('mouseup', async (e) => {
+document.addEventListener("mouseup", async (e) => {
   if (!isCapturing) return;
-  
+
   try {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) return;
-    
+
     const selectedText = selection.toString().trim();
     if (!selectedText) return;
-    
-    console.log('텍스트 선택됨:', selectedText.length, '자');
-    
+
+    console.log("텍스트 선택됨:", selectedText.length, "자");
+
     // 이미 저장된 동일한 텍스트가 있는지 확인
     if (lastCapturedContent === selectedText) {
-      console.log('동일한 텍스트 중복 방지');
+      console.log("동일한 텍스트 중복 방지");
       return;
     }
-    
+
     lastCapturedContent = selectedText;
-    
+
     // 선택된 범위의 HTML 가져오기
     const range = selection.getRangeAt(0);
     const fragment = range.cloneContents();
-    const tempDiv = document.createElement('div');
+    const tempDiv = document.createElement("div");
     tempDiv.appendChild(fragment);
     const htmlContent = tempDiv.innerHTML;
 
     // 선택된 범위의 시작점(commonAncestorContainer)을 기준으로 DOM 경로 생성
     const commonAncestor = range.commonAncestorContainer;
     const domPath = getDomPath(commonAncestor);
-    console.log('DOM 경로:', domPath);
-    
+    console.log("DOM 경로:", domPath);
+
     // Send only HTML to background
     try {
       await sendMessageToBackground({
-        action: 'contentCaptured',
-        type: 'text',
+        action: "contentCaptured",
+        type: "text",
         content: htmlContent, // Only original HTML
         meta: {
-          originalType: 'html',
-          domPath: domPath
-        }
+          originalType: "html",
+          domPath: domPath,
+        },
       });
-      console.log('HTML 텍스트 추출 및 저장 요청 성공 (DOM 경로 포함)');
+      console.log("HTML 텍스트 추출 및 저장 요청 성공 (DOM 경로 포함)");
     } catch (error) {
-      console.error('텍스트 저장 요청 실패:', error);
+      console.error("텍스트 저장 요청 실패:", error);
     }
   } catch (error) {
-    console.error('텍스트 처리 오류:', error);
+    console.error("텍스트 처리 오류:", error);
   }
 });
 
 // 이미지 드래그 처리
-document.addEventListener('dragstart', async (e) => {
+document.addEventListener("dragstart", async (e) => {
   if (!isCapturing) return;
-  
+
   try {
     const target = e.target as HTMLElement;
-    
+
     // 이미지 드래그 감지
-    if (target.tagName === 'IMG') {
+    if (target.tagName === "IMG") {
       const imgElement = target as HTMLImageElement;
       if (!imgElement.src) return;
-      
-      console.log('이미지 드래그 감지:', imgElement.src);
-      
+
+      console.log("이미지 드래그 감지:", imgElement.src);
+
       // 이미지를 Data URL로 변환
-      const canvas = document.createElement('canvas');
+      const canvas = document.createElement("canvas");
       canvas.width = imgElement.naturalWidth;
       canvas.height = imgElement.naturalHeight;
-      
-      const context = canvas.getContext('2d');
+
+      const context = canvas.getContext("2d");
       if (!context) {
-        console.error('캔버스 컨텍스트를 가져올 수 없음');
+        console.error("캔버스 컨텍스트를 가져올 수 없음");
         return;
       }
-      
+
       // 이미지 그리기 및 데이터 URL 가져오기
       context.drawImage(imgElement, 0, 0);
       let dataUrl: string;
-      
+
       try {
-        dataUrl = canvas.toDataURL('image/png');
+        dataUrl = canvas.toDataURL("image/png");
       } catch (error) {
-        console.error('이미지 데이터 URL 변환 오류:', error);
+        console.error("이미지 데이터 URL 변환 오류:", error);
         // 오류 발생 시 원본 이미지 URL 사용
         dataUrl = imgElement.src;
       }
-      
+
       // 이미지 파일 이름 추출
       const imgNameMatch = imgElement.src.match(/([^/]+)\.(?:jpe?g|png|gif|bmp|webp)(?:\?.*)?$/i);
       const imgName = imgNameMatch ? imgNameMatch[1] : `image-${Date.now()}`;
-      
+
       // 안전한 메시지 전송 함수 사용
       try {
         await sendMessageToBackground({
-          action: 'contentCaptured',
-          type: 'image',
+          action: "contentCaptured",
+          type: "image",
           content: {
             dataUrl: dataUrl,
-            type: 'image/png',
-            name: `${imgName}.png`
+            type: "image/png",
+            name: `${imgName}.png`,
           },
           meta: {
-            format: 'png'
-          }
+            format: "png",
+          },
         });
-        console.log('이미지 저장 성공');
+        console.log("이미지 저장 성공");
       } catch (error) {
-        console.error('이미지 저장 실패:', error);
+        console.error("이미지 저장 실패:", error);
       }
     }
   } catch (error) {
-    console.error('이미지 처리 오류:', error);
+    console.error("이미지 처리 오류:", error);
   }
 });
 
 // 알림 표시 함수
 // showNotification 함수 수정 (메시지 타입 처리 추가)
 function showNotification(itemOrMessage: CapturedItem | NotificationMessage) {
-    let container = document.getElementById('drag-save-notification-container');
-    if (!container) {
-        container = document.createElement('div');
-        container.id = 'drag-save-notification-container';
-        Object.assign(container.style, { 
-            position: 'fixed', bottom: '20px', right: '20px', zIndex: '99999',
-            display: 'flex', flexDirection: 'column', alignItems: 'flex-end',
-            gap: '10px', maxWidth: '300px' 
-         });
-        document.body.appendChild(container);
+  let container = document.getElementById("drag-save-notification-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "drag-save-notification-container";
+    Object.assign(container.style, {
+      position: "fixed",
+      bottom: "20px",
+      right: "20px",
+      zIndex: "99999",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "flex-end",
+      gap: "10px",
+      maxWidth: "300px",
+    });
+    document.body.appendChild(container);
+  }
+
+  const notification = document.createElement("div");
+  let message = "";
+  let bgColor = "";
+  let isError = false;
+
+  if ("message" in itemOrMessage) {
+    // NotificationMessage 타입
+    message = itemOrMessage.message;
+    switch (itemOrMessage.type) {
+      case "info":
+        bgColor = "linear-gradient(135deg, #607D8B, #455A64)";
+        break;
+      case "warning":
+        bgColor = "linear-gradient(135deg, #FFC107, #FFA000)";
+        break;
+      case "error":
+        bgColor = "linear-gradient(135deg, #F44336, #D32F2F)";
+        isError = true;
+        break;
+      default:
+        bgColor = "linear-gradient(135deg, #607D8B, #455A64)";
     }
-
-    const notification = document.createElement('div');
-    let message = '';
-    let bgColor = '';
-    let isError = false;
-
-    if ('message' in itemOrMessage) {
-        // NotificationMessage 타입
-        message = itemOrMessage.message;
-        switch (itemOrMessage.type) {
-            case 'info':
-                bgColor = 'linear-gradient(135deg, #607D8B, #455A64)';
-                break;
-            case 'warning':
-                bgColor = 'linear-gradient(135deg, #FFC107, #FFA000)';
-                break;
-            case 'error':
-                bgColor = 'linear-gradient(135deg, #F44336, #D32F2F)';
-                isError = true;
-                break;
-            default:
-                bgColor = 'linear-gradient(135deg, #607D8B, #455A64)';
-        }
-    } else {
-        // CapturedItem 타입
-        switch (itemOrMessage.type) {
-            case 'text':
-                message = '텍스트가 저장되었습니다.';
-                bgColor = 'linear-gradient(135deg, #4CAF50, #388E3C)';
-                break;
-            case 'image':
-                message = '이미지가 저장되었습니다.';
-                bgColor = 'linear-gradient(135deg, #2196F3, #1976D2)';
-                break;
-            case 'error':
-                message = itemOrMessage.meta?.errorMessage || '알 수 없는 오류로 저장되었습니다.';
-                bgColor = 'linear-gradient(135deg, #F44336, #D32F2F)';
-                isError = true;
-                break;
-            default:
-                message = '콘텐츠가 저장되었습니다.';
-                bgColor = 'linear-gradient(135deg, #9C27B0, #7B1FA2)';
-        }
+  } else {
+    // CapturedItem 타입
+    switch (itemOrMessage.type) {
+      case "text":
+        message = "텍스트가 저장되었습니다.";
+        bgColor = "linear-gradient(135deg, #4CAF50, #388E3C)";
+        break;
+      case "image":
+        message = "이미지가 저장되었습니다.";
+        bgColor = "linear-gradient(135deg, #2196F3, #1976D2)";
+        break;
+      case "error":
+        message = itemOrMessage.meta?.errorMessage || "알 수 없는 오류로 저장되었습니다.";
+        bgColor = "linear-gradient(135deg, #F44336, #D32F2F)";
+        isError = true;
+        break;
+      default:
+        message = "콘텐츠가 저장되었습니다.";
+        bgColor = "linear-gradient(135deg, #9C27B0, #7B1FA2)";
     }
+  }
 
-    Object.assign(notification.style, { 
-        padding: '12px 16px', background: bgColor, color: 'white',
-        borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        marginBottom: '10px', fontSize: '14px',
-        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        fontWeight: '500', opacity: '0', transform: 'translateX(20px)',
-        transition: 'opacity 0.3s ease, transform 0.3s ease', position: 'relative', maxWidth: '100%'
-     });
-    notification.textContent = message;
-    container.appendChild(notification);
+  Object.assign(notification.style, {
+    padding: "12px 16px",
+    background: bgColor,
+    color: "white",
+    borderRadius: "8px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+    marginBottom: "10px",
+    fontSize: "14px",
+    fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    fontWeight: "500",
+    opacity: "0",
+    transform: "translateX(20px)",
+    transition: "opacity 0.3s ease, transform 0.3s ease",
+    position: "relative",
+    maxWidth: "100%",
+  });
+  notification.textContent = message;
+  container.appendChild(notification);
 
-    setTimeout(() => { notification.style.opacity = '1'; notification.style.transform = 'translateX(0)'; }, 10);
-    setTimeout(() => { 
-        notification.style.opacity = '0'; notification.style.transform = 'translateX(20px)';
-        setTimeout(() => { notification.remove(); }, 300);
-     }, isError ? 5000 : 3000); // 에러는 5초, 나머지는 3초
+  setTimeout(() => {
+    notification.style.opacity = "1";
+    notification.style.transform = "translateX(0)";
+  }, 10);
+  setTimeout(
+    () => {
+      notification.style.opacity = "0";
+      notification.style.transform = "translateX(20px)";
+      setTimeout(() => {
+        notification.remove();
+      }, 300);
+    },
+    isError ? 5000 : 3000
+  ); // 에러는 5초, 나머지는 3초
 }
 
 // 현재 페이지의 HTML 저장 후 텍스트 추출
@@ -406,169 +433,191 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
   try {
     let html: string | null = null;
     const hostname = window.location.hostname;
-    
+
     // 사이트별 HTML 컨텐츠 추출 로직
-    if (hostname.endsWith('blog.naver.com')) {
-      const iframe = document.body.querySelector('iframe');
+    if (hostname.endsWith("blog.naver.com")) {
+      const iframe = document.body.querySelector("iframe");
       if (iframe && iframe.src) {
         const iframeSrc = iframe.src;
-        console.log('네이버 블로그 페이지 저장 시작:', iframeSrc);
-        
+        console.log("네이버 블로그 페이지 저장 시작:", iframeSrc);
+
         try {
           const response = await sendMessageToBackground({
-            action: 'fetchIframeContent',
-            url: iframeSrc
+            action: "fetchIframeContent",
+            url: iframeSrc,
           });
-          
+
           if (response && response.html) {
             try {
               const parser = new DOMParser();
-              const doc = parser.parseFromString(response.html, 'text/html');
-              const wholeBodyDiv = doc.getElementById('postListBody');
-              
+              const doc = parser.parseFromString(response.html, "text/html");
+              const wholeBodyDiv = doc.getElementById("postListBody");
+
               if (wholeBodyDiv) {
-                console.log('whole-body div를 찾았습니다.');
+                console.log("whole-body div를 찾았습니다.");
                 html = wholeBodyDiv.outerHTML;
               }
             } catch (parseError) {
-              console.error('HTML 파싱 오류:', parseError);
+              console.error("HTML 파싱 오류:", parseError);
             }
           }
         } catch (error) {
-          console.error('네이버 블로그 iframe 처리 오류:', error);
+          console.error("네이버 블로그 iframe 처리 오류:", error);
         }
       } else {
-        return { success: false, error: '네이버 블로그 글 안에서 저장 버튼을 눌러주세요.' };
+        return { success: false, error: "네이버 블로그 글 안에서 저장 버튼을 눌러주세요." };
       }
-    } else if (hostname.endsWith('velog.io')) {
-      const content = document.querySelector('.atom-one');
+    } else if (hostname.endsWith("velog.io")) {
+      const content = document.querySelector(".atom-one");
       if (content) {
-        console.log('velog 컨텐츠 저장 시작');
+        console.log("velog 컨텐츠 저장 시작");
         html = content.outerHTML;
       } else {
-        return { success: false, error: '벨로그 글 안에서 저장 버튼을 눌러주세요.' };
+        return { success: false, error: "벨로그 글 안에서 저장 버튼을 눌러주세요." };
       }
-    } else if (hostname.endsWith('.tistory.com')) {
-      console.log('티스토리 블로그 페이지 저장 시작');
-      const content = document.querySelector('.tt_article_useless_p_margin');
+    } else if (hostname.endsWith(".tistory.com")) {
+      console.log("티스토리 블로그 페이지 저장 시작");
+      const content = document.querySelector(".tt_article_useless_p_margin");
       if (content) {
         html = content.outerHTML;
       }
-    } else if (hostname.endsWith('brunch.co.kr')) {
-      const content = document.querySelector('.wrap_view_article');
+    } else if (hostname.endsWith("brunch.co.kr")) {
+      const content = document.querySelector(".wrap_view_article");
       if (content) {
         html = content.outerHTML;
       } else {
-        return { success: false, error: '브런치 글 안에서 저장 버튼을 눌러주세요.' };
+        return { success: false, error: "브런치 글 안에서 저장 버튼을 눌러주세요." };
       }
-    } else if (hostname.endsWith('chatgpt.com')) {
-      const contents = document.querySelectorAll('.prose');
+    } else if (hostname.endsWith("chatgpt.com")) {
+      const contents = document.querySelectorAll(".prose");
       if (contents) {
-        html = Array.from(contents).map(content => content.outerHTML).join('\n\n');
+        html = Array.from(contents)
+          .map((content) => content.outerHTML)
+          .join("\n\n");
       } else {
-        return { success: false, error: 'ChatGPT 콘텐츠를 특정하지 못했습니다. 드래그로 선택해주세요.' };
+        return {
+          success: false,
+          error: "ChatGPT 콘텐츠를 특정하지 못했습니다. 드래그로 선택해주세요.",
+        };
       }
-    } else if ( hostname.endsWith('perplexity.ai') ) {
+    } else if (hostname.endsWith("perplexity.ai")) {
       // Select elements potentially containing the answer
-      const contents = document.querySelectorAll('div.prose p');
+      const contents = document.querySelectorAll("div.prose p");
       if (contents) {
-        html = Array.from(contents).map(content => content.outerHTML).join('\n\n');
+        html = Array.from(contents)
+          .map((content) => content.outerHTML)
+          .join("\n\n");
       } else {
-        return { success: false, error: 'Perplexity.ai의 답변 콘텐츠를 특정하지 못했습니다. 드래그로 선택해주세요.' };
+        return {
+          success: false,
+          error: "Perplexity.ai의 답변 콘텐츠를 특정하지 못했습니다. 드래그로 선택해주세요.",
+        };
       }
-    } else if (hostname == 'namu.wiki') {
-      const rootContents = document.querySelectorAll('div[data-v-d16cf66c]');
+    } else if (hostname == "namu.wiki") {
+      const rootContents = document.querySelectorAll("div[data-v-d16cf66c]");
       if (rootContents && rootContents.length > 0) {
         // 가장 안쪽의 콘텐츠만 수집하는 함수
         const getInnermostContents = (element: Element): Element[] => {
           // 현재 요소의 직계 자식들 가져오기
           const directChildren = Array.from(element.children);
-          
+
           // 직계 자식들이 모두 data-v-d16cf66c를 가진 div인지 확인
           const hasOnlyDataVDivs = directChildren.some(
-            child => child.tagName === 'DIV' && child.hasAttribute('data-v-d16cf66c')
+            (child) => child.tagName === "DIV" && child.hasAttribute("data-v-d16cf66c")
           );
-          
+
           return hasOnlyDataVDivs ? [] : [element];
         };
-        
+
         // 모든 루트 요소들에 대해 가장 안쪽 콘텐츠 수집
         const contents = Array.from(rootContents)
-          .flatMap(root => getInnermostContents(root))
-          .map(content => content.outerHTML);
-        
-        const html = contents.join('\n\n');
+          .flatMap((root) => getInnermostContents(root))
+          .map((content) => content.outerHTML);
+
+        const html = contents.join("\n\n");
       } else {
-        return { success: false, error: '나무위키 글 안에서 저장 버튼을 눌러주세요.' };
+        return { success: false, error: "나무위키 글 안에서 저장 버튼을 눌러주세요." };
       }
     }
 
     if (!html) {
-      console.log('일반 페이지 전체 HTML 저장 시도');
+      console.log("일반 페이지 전체 HTML 저장 시도");
       try {
-          const doctype = document.doctype ? new XMLSerializer().serializeToString(document.doctype) : '';
-          const contentHtmls = extractContent(doctype + document.documentElement.outerHTML).contentHtmls;
-          html = contentHtmls.join('');
-          console.log('전체 document HTML을 사용합니다.');
+        const doctype = document.doctype
+          ? new XMLSerializer().serializeToString(document.doctype)
+          : "";
+        const contentHtmls = extractContent(
+          doctype + document.documentElement.outerHTML
+        ).contentHtmls;
+        html = contentHtmls.join("");
+        console.log("전체 document HTML을 사용합니다.");
       } catch (extractError) {
-             console.error("HTML 추출 중 오류:", extractError);
-             html = document.documentElement.outerHTML;
-             if (!html) {
-               showNotification({
-                  id: 0, type: 'error', pageTitle: '', pageUrl: '',
-                  timestamp: new Date(), content: '', meta: { errorMessage: 'HTML 콘텐츠를 추출할 수 없습니다.' }
-                });
-               return { success: false, error: 'HTML 콘텐츠를 추출할 수 없습니다.' };
-             }
+        console.error("HTML 추출 중 오류:", extractError);
+        html = document.documentElement.outerHTML;
+        if (!html) {
+          showNotification({
+            id: 0,
+            type: "error",
+            pageTitle: "",
+            pageUrl: "",
+            timestamp: new Date(),
+            content: "",
+            meta: { errorMessage: "HTML 콘텐츠를 추출할 수 없습니다." },
+          });
+          return { success: false, error: "HTML 콘텐츠를 추출할 수 없습니다." };
+        }
       }
     }
-    
+
     if (!html) {
-      let errorMsg = '콘텐츠를 찾을 수 없습니다.';
+      let errorMsg = "콘텐츠를 찾을 수 없습니다.";
       showNotification({
-        id: 0, type: 'error', pageTitle: '', pageUrl: '',
-        timestamp: new Date(), content: '', meta: { errorMessage: errorMsg }
+        id: 0,
+        type: "error",
+        pageTitle: "",
+        pageUrl: "",
+        timestamp: new Date(),
+        content: "",
+        meta: { errorMessage: errorMsg },
       });
       return { success: false, error: errorMsg };
     }
 
-    console.log('Original HTML 추출 완료, 백그라운드로 전송');
-    console.log('Original HTML length:', html.length);
+    console.log("Original HTML 추출 완료, 백그라운드로 전송");
+    console.log("Original HTML length:", html.length);
 
     // Send only HTML to background
     const response: ExtensionResponse = await sendMessageToBackground({
-      action: 'contentCaptured',
-      type: 'text',
+      action: "contentCaptured",
+      type: "text",
       content: html, // Only original HTML
-      meta: { originalType: 'html', saveType: 'full' }
+      meta: { originalType: "html", saveType: "full" },
     });
 
     // 응답 처리 및 알림 표시 (옵셔널 체이닝 사용)
-    if (response && response.success) { // response 존재 및 success 확인
-        if (response.status === 'skipped_duplicate' && response.message) {
-            // 중복 건너뛰기 알림 (정보)
-            showNotification({ type: 'info', message: response.message });
-        } else if (response.status === 'item_updated' && response.message) {
-            // 업데이트 완료 알림 (경고/주황색 스타일)
-            showNotification({ type: 'warning', message: response.message });
-        } else if (response.status === 'ok') {
-             console.log("새 항목 저장 요청 성공 (백그라운드 처리 대기)");
-        }
-        // savingComplete 메시지는 background에서 별도로 보내므로 여기서 성공 알림을 직접 띄우지 않음
-        return { success: true }; // 작업 요청 자체는 성공
-
+    if (response && response.success) {
+      // response 존재 및 success 확인
+      if (response.status === "skipped_duplicate" && response.message) {
+        // 중복 건너뛰기 알림 (정보)
+        showNotification({ type: "info", message: response.message });
+      } else if (response.status === "item_updated" && response.message) {
+        // 업데이트 완료 알림 (경고/주황색 스타일)
+        showNotification({ type: "warning", message: response.message });
+      } else if (response.status === "ok") {
+        console.log("새 항목 저장 요청 성공 (백그라운드 처리 대기)");
+      }
+      // savingComplete 메시지는 background에서 별도로 보내므로 여기서 성공 알림을 직접 띄우지 않음
+      return { success: true }; // 작업 요청 자체는 성공
     } else {
-        // 실패 응답 처리 (옵셔널 체이닝 사용)
-        const errorMsg = response?.error || '알 수 없는 오류로 저장에 실패했습니다.';
-        showNotification({ type: 'error', message: errorMsg });
-        return { success: false, error: errorMsg };
+      // 실패 응답 처리 (옵셔널 체이닝 사용)
+      const errorMsg = response?.error || "알 수 없는 오류로 저장에 실패했습니다.";
+      showNotification({ type: "error", message: errorMsg });
+      return { success: false, error: errorMsg };
     }
-
   } catch (error: any) {
     // sendMessageToBackground 자체에서 reject된 경우
-    console.error('HTML 저장 중 오류:', error);
-    showNotification({ type: 'error', message: error.message || 'HTML 저장 중 오류 발생' });
-    return { success: false, error: error.message || 'HTML 저장 중 오류가 발생했습니다' };
+    console.error("HTML 저장 중 오류:", error);
+    showNotification({ type: "error", message: error.message || "HTML 저장 중 오류 발생" });
+    return { success: false, error: error.message || "HTML 저장 중 오류가 발생했습니다" };
   }
 }
- 

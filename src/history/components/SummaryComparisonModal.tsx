@@ -1,19 +1,12 @@
 import { useState, useEffect } from "react";
 import CustomReactMarkdown from "../../lib/react-markdown/CustomReactMarkdown";
 import { useApiMutation } from "../../hooks/useApi";
-import {
-  SummarySourceRequest,
-  SummarySourceResponse,
-} from "../../types/summary";
+import { SummarySourceRequest, SummarySourceResponse } from "../../types/summary";
 
 interface SummaryComparisonModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (
-    summaryContent: string,
-    summaryType: "markdown" | "ai",
-    summaryId: string
-  ) => void;
+  onSubmit: (summaryContent: string, summaryType: "markdown" | "ai", summaryId: string) => void;
   markdownContent: string;
   pageUrl: string;
   pageTitle: string;
@@ -28,9 +21,7 @@ export default function SummaryComparisonModal({
   pageTitle,
 }: SummaryComparisonModalProps) {
   const [aiSummary, setAiSummary] = useState<string>("");
-  const [selectedType, setSelectedType] = useState<"markdown" | "ai">(
-    "markdown"
-  );
+  const [selectedType, setSelectedType] = useState<"markdown" | "ai">("markdown");
 
   // API mutation 설정
   const { mutate: generateSummary, isPending: isLoading } = useApiMutation<
@@ -80,15 +71,7 @@ export default function SummaryComparisonModal({
         url: pageUrl,
       });
     }
-  }, [
-    isOpen,
-    markdownContent,
-    aiSummary,
-    isLoading,
-    generateSummary,
-    pageTitle,
-    pageUrl,
-  ]);
+  }, [isOpen, markdownContent, aiSummary, isLoading, generateSummary, pageTitle, pageUrl]);
 
   if (!isOpen) return null;
 
@@ -113,8 +96,7 @@ export default function SummaryComparisonModal({
       >
         <h2 className="text-xl font-bold mb-4">저장 방식 선택</h2>
         <p className="text-sm text-gray-600 mb-4">
-          원하시는 저장 방식을 선택해주세요. 왼쪽은 원본, 오른쪽은 AI가 요약한
-          내용입니다.
+          원하시는 저장 방식을 선택해주세요. 왼쪽은 원본, 오른쪽은 AI가 요약한 내용입니다.
         </p>
 
         <div className="flex gap-4 flex-grow min-h-0">
@@ -162,9 +144,7 @@ export default function SummaryComparisonModal({
                   </div>
                 </div>
               ) : (
-                <CustomReactMarkdown>
-                  {aiSummary.replace(/\\n/g, "\n")}
-                </CustomReactMarkdown>
+                <CustomReactMarkdown>{aiSummary.replace(/\\n/g, "\n")}</CustomReactMarkdown>
               )}
             </div>
           </div>
@@ -181,9 +161,7 @@ export default function SummaryComparisonModal({
           <button
             onClick={handleSave}
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-            disabled={
-              isLoading || isSaving || (selectedType === "ai" && !aiSummary)
-            }
+            disabled={isLoading || isSaving || (selectedType === "ai" && !aiSummary)}
           >
             {isSaving ? "저장 중..." : "선택된 내용 저장"}
           </button>

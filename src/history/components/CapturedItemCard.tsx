@@ -118,18 +118,12 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
         const imgContent = item.content as ImageContent;
         return (
           <div className="card-content type-image">
-            <img
-              src={imgContent.dataUrl}
-              alt="캡처된 이미지"
-              title={item.pageTitle}
-            />
+            <img src={imgContent.dataUrl} alt="캡처된 이미지" title={item.pageTitle} />
           </div>
         );
 
       default:
-        return (
-          <div className="card-content">지원되지 않는 콘텐츠 타입입니다.</div>
-        );
+        return <div className="card-content">지원되지 않는 콘텐츠 타입입니다.</div>;
     }
   };
 
@@ -146,21 +140,12 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
   };
 
   return (
-    <div
-      ref={cardRef}
-      className="card flex flex-col gap-2 border-b border-light-gray pb-2"
-    >
+    <div ref={cardRef} className="card flex flex-col gap-2 border-b border-light-gray pb-2">
       <div className="card-header flex h-18 justify-between items-center sticky top-18 bg-white z-10 py-2 border-b border-light-gray">
         <div className="flex gap-2">
-          <span className="timestamp text-base">
-            {formatDate(item.timestamp)}
-          </span>
+          <span className="timestamp text-base">{formatDate(item.timestamp)}</span>
           <span className="item-type text-base">
-            {item.type === "text"
-              ? "텍스트"
-              : item.type === "image"
-              ? "이미지"
-              : "알 수 없음"}
+            {item.type === "text" ? "텍스트" : item.type === "image" ? "이미지" : "알 수 없음"}
           </span>
         </div>
         <div className="flex gap-2">
@@ -175,9 +160,7 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
           <button
             onClick={() => {
               setIsEditing(true);
-              setEditContent(
-                typeof item.content === "string" ? item.content : ""
-              );
+              setEditContent(typeof item.content === "string" ? item.content : "");
             }}
             className="bg-blue-500 text-white border-0 py-2 px-4 rounded hover:bg-blue-600 transition-colors font-medium text-sm"
             title="수정"

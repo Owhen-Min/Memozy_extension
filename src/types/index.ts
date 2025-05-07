@@ -1,15 +1,15 @@
 // 캡처된 아이템 타입
-export type ItemType = 'text' | 'html' | 'image';
+export type ItemType = "text" | "html" | "image";
 
 // 알림 타입
-export type NotificationType = 'success' | 'info' | 'warning' | 'error';
+export type NotificationType = "success" | "info" | "warning" | "error";
 
 // 메타 데이터 타입
 export interface MetaData {
   format?: string;
   combinedContent?: boolean;
   itemCount?: number;
-  saveType?: 'full' | 'iframe' | 'full_with_iframes' | 'error';
+  saveType?: "full" | "iframe" | "full_with_iframes" | "error";
   iframeIndex?: number;
   merged?: boolean;
   originalType?: string;
@@ -40,21 +40,21 @@ export interface Notification {
 }
 
 // 메시지 액션 타입
-export type MessageAction = 
-  | 'contentCaptured'
-  | 'startCapture'
-  | 'stopCapture'
-  | 'savingComplete'
-  | 'showNotification'
-  | 'updateCapturingState'
-  | 'saveFullHtml'
-  | 'saveIframesHtml'
-  | 'downloadItem'
-  | 'openHistoryPage'
-  | 'toggleCapturing'
-  | 'contentScriptReady'
-  | 'contentScriptCheck'
-  | 'generateAiSummary';
+export type MessageAction =
+  | "contentCaptured"
+  | "startCapture"
+  | "stopCapture"
+  | "savingComplete"
+  | "showNotification"
+  | "updateCapturingState"
+  | "saveFullHtml"
+  | "saveIframesHtml"
+  | "downloadItem"
+  | "openHistoryPage"
+  | "toggleCapturing"
+  | "contentScriptReady"
+  | "contentScriptCheck"
+  | "generateAiSummary";
 
 // 메시지 인터페이스
 export interface Message {
@@ -82,4 +82,4 @@ export interface Response {
   error?: string;
   itemId?: number;
   downloadId?: number;
-} 
+}

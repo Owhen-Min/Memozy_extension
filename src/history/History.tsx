@@ -3,9 +3,7 @@ import { CapturedItem, ItemType } from "../types";
 import CapturedItemCard from "./components/CapturedItemCard";
 import "../Global.css";
 import { useNavigate } from "react-router-dom";
-import CreateProblemModal, {
-  ProblemCreationData,
-} from "./components/CreateProblemModal";
+import CreateProblemModal, { ProblemCreationData } from "./components/CreateProblemModal";
 import { useAuth } from "../hooks/useAuth";
 import ArrowDown from "../svgs/arrow-down.svg";
 import ArrowRight from "../svgs/arrow-right.svg";
@@ -28,10 +26,7 @@ function extractNthOfTypeValue(selectorPart: string): number | null {
 }
 
 // Compares two DOM paths
-function compareDomPaths(
-  pathA: string | undefined,
-  pathB: string | undefined
-): number {
+function compareDomPaths(pathA: string | undefined, pathB: string | undefined): number {
   if (!pathA && !pathB) return 0; // Both missing
   if (!pathA) return 1; // A missing, B comes first
   if (!pathB) return -1; // B missing, A comes first
@@ -81,11 +76,11 @@ export default function History() {
     [url: string]: boolean;
   }>({});
   const [isProblemModalOpen, setIsProblemModalOpen] = useState(false);
-  const [selectedItemForProblem, setSelectedItemForProblem] =
-    useState<CapturedItem | null>(null);
+  const [selectedItemForProblem, setSelectedItemForProblem] = useState<CapturedItem | null>(null);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
-  const [selectedItemGroupForSummary, setSelectedItemGroupForSummary] =
-    useState<CapturedItem[]>([]);
+  const [selectedItemGroupForSummary, setSelectedItemGroupForSummary] = useState<CapturedItem[]>(
+    []
+  );
   const [selectedGroupInfo, setSelectedGroupInfo] = useState<{
     url: string;
     title: string;
@@ -161,9 +156,7 @@ export default function History() {
       });
 
       // Reconstruct sorted savedItems array based on sorted URL groups
-      const finalSortedItems = sortedUrls.flatMap(
-        (url) => finalGroupedItems[url].items
-      );
+      const finalSortedItems = sortedUrls.flatMap((url) => finalGroupedItems[url].items);
 
       setSavedItems(finalSortedItems);
     } catch (error) {
@@ -204,8 +197,7 @@ export default function History() {
   const handleDelete = async (itemId: number) => {
     try {
       const currentItemsResult = await chrome.storage.local.get(["savedItems"]);
-      const currentItems = (currentItemsResult.savedItems ||
-        []) as CapturedItem[];
+      const currentItems = (currentItemsResult.savedItems || []) as CapturedItem[];
       const updatedItems = currentItems.filter((item) => item.id !== itemId);
       await chrome.storage.local.set({ savedItems: updatedItems });
     } catch (error) {
@@ -216,11 +208,7 @@ export default function History() {
 
   // 모든 아이템 삭제 처리
   const handleDeleteAll = async () => {
-    if (
-      window.confirm(
-        "모든 캡처 아이템을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다."
-      )
-    ) {
+    if (window.confirm("모든 캡처 아이템을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) {
       try {
         await chrome.storage.local.set({ savedItems: [] });
       } catch (error) {
@@ -239,9 +227,7 @@ export default function History() {
       )
     ) {
       try {
-        const currentItemsResult = await chrome.storage.local.get([
-          "savedItems",
-        ]);
+        const currentItemsResult = await chrome.storage.local.get(["savedItems"]);
         const itemsToKeep = (currentItemsResult.savedItems || []).filter(
           (item: CapturedItem) => item.pageUrl !== pageUrl
         );
@@ -260,10 +246,7 @@ export default function History() {
       let markdownContent: string | undefined = undefined;
 
       // Convert HTML to Markdown for text/html types
-      if (
-        (item.type === "text" || item.type === "html") &&
-        typeof item.content === "string"
-      ) {
+      if ((item.type === "text" || item.type === "html") && typeof item.content === "string") {
         try {
           markdownContent = turndownService.turndown(item.content);
         } catch (conversionError) {
@@ -273,10 +256,7 @@ export default function History() {
         }
       } else if (item.type !== "image") {
         // Handle cases where content is not a string for text/html
-        console.warn(
-          "다운로드할 텍스트/HTML 콘텐츠가 문자열이 아닙니다:",
-          item
-        );
+        console.warn("다운로드할 텍스트/HTML 콘텐츠가 문자열이 아닙니다:", item);
         // Optionally provide default markdown or alert the user
         markdownContent = `# ${
           item.pageTitle || "제목 없음"
@@ -322,12 +302,9 @@ export default function History() {
   const handleEdit = async (item: CapturedItem, newContent: string) => {
     try {
       const currentItemsResult = await chrome.storage.local.get(["savedItems"]);
-      const currentItems = (currentItemsResult.savedItems ||
-        []) as CapturedItem[];
+      const currentItems = (currentItemsResult.savedItems || []) as CapturedItem[];
       const updatedItems = currentItems.map((savedItem) =>
-        savedItem.id === item.id
-          ? { ...savedItem, content: newContent }
-          : savedItem
+        savedItem.id === item.id ? { ...savedItem, content: newContent } : savedItem
       );
       await chrome.storage.local.set({ savedItems: updatedItems });
     } catch (error) {
@@ -383,17 +360,15 @@ export default function History() {
 
   // Get sorted URLs for rendering based on the original sorting (latest group first)
   // We need to respect the order derived from sorting by the first item's timestamp
-  const displayOrderUrls = Object.keys(groupedItemsForDisplay).sort(
-    (urlA, urlB) => {
-      const firstItemTimestamp = (url: string): number => {
-        const firstItem = savedItems.find((item) => item.pageUrl === url);
-        if (!firstItem) return 0;
-        const time = new Date(firstItem.timestamp).getTime();
-        return isNaN(time) ? 0 : time;
-      };
-      return firstItemTimestamp(urlB) - firstItemTimestamp(urlA); // Descending
-    }
-  );
+  const displayOrderUrls = Object.keys(groupedItemsForDisplay).sort((urlA, urlB) => {
+    const firstItemTimestamp = (url: string): number => {
+      const firstItem = savedItems.find((item) => item.pageUrl === url);
+      if (!firstItem) return 0;
+      const time = new Date(firstItem.timestamp).getTime();
+      return isNaN(time) ? 0 : time;
+    };
+    return firstItemTimestamp(urlB) - firstItemTimestamp(urlA); // Descending
+  });
 
   // 그룹 접기/펼치기 토글 함수
   const toggleGroup = (url: string) => {
@@ -443,8 +418,7 @@ export default function History() {
 
     try {
       const currentItemsResult = await chrome.storage.local.get(["savedItems"]);
-      const currentItems = (currentItemsResult.savedItems ||
-        []) as CapturedItem[];
+      const currentItems = (currentItemsResult.savedItems || []) as CapturedItem[];
 
       // 선택된 항목들에만 summaryId 할당
       const updatedItems = currentItems.map((item) =>
@@ -500,8 +474,7 @@ export default function History() {
       await new Promise((resolve) => setTimeout(resolve, 1000));
       const problemId = "problem_" + Date.now();
       const currentItemsResult = await chrome.storage.local.get(["savedItems"]);
-      const currentItems = (currentItemsResult.savedItems ||
-        []) as CapturedItem[];
+      const currentItems = (currentItemsResult.savedItems || []) as CapturedItem[];
       const updatedItems = currentItems.map((savedItem) =>
         savedItem.pageUrl === pageUrl ? { ...savedItem, problemId } : savedItem
       );
@@ -545,9 +518,7 @@ export default function History() {
         >
           Google 계정으로 로그인
         </button>
-        <p className="text-sm text-gray mt-4">
-          로그인 후 이 페이지가 자동으로 새로고침됩니다.
-        </p>
+        <p className="text-sm text-gray mt-4">로그인 후 이 페이지가 자동으로 새로고침됩니다.</p>
       </div>
     );
   }
@@ -650,15 +621,10 @@ export default function History() {
                       items[0].summaryId
                         ? "bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
                         : "bg-white border-gray-200 text-gray-600 hover:bg-gray-100"
-                    } ${
-                      summarizingUrls[url]
-                        ? "opacity-50 cursor-wait"
-                        : "cursor-pointer"
-                    }`}
+                    } ${summarizingUrls[url] ? "opacity-50 cursor-wait" : "cursor-pointer"}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (!summarizingUrls[url])
-                        handleOpenSummaryModal(url, groupTitle);
+                      if (!summarizingUrls[url]) handleOpenSummaryModal(url, groupTitle);
                     }}
                     disabled={summarizingUrls[url]}
                     title={items[0].summaryId ? "요약 보기" : "요약 생성"}
@@ -677,23 +643,20 @@ export default function History() {
                       items[0].problemId
                         ? "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 cursor-pointer"
                         : items[0].summaryId && !creatingProblemsUrls[url]
-                        ? "bg-white border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer"
-                        : "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
-                    } ${
-                      creatingProblemsUrls[url] ? "opacity-50 cursor-wait" : ""
-                    }`}
+                          ? "bg-white border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer"
+                          : "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
+                    } ${creatingProblemsUrls[url] ? "opacity-50 cursor-wait" : ""}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (!creatingProblemsUrls[url])
-                        handleCreateProblem(items[0]);
+                      if (!creatingProblemsUrls[url]) handleCreateProblem(items[0]);
                     }}
                     disabled={!items[0]?.summaryId || creatingProblemsUrls[url]}
                     title={
                       items[0].problemId
                         ? "문제 보기"
                         : !items[0].summaryId
-                        ? "요약 후 문제 생성 가능"
-                        : "문제 만들기"
+                          ? "요약 후 문제 생성 가능"
+                          : "문제 만들기"
                     }
                   >
                     {creatingProblemsUrls[url] ? (

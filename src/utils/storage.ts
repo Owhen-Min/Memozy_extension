@@ -1,16 +1,16 @@
-import { CapturedItem, StorageState } from '../types';
+import { CapturedItem, StorageState } from "../types";
 
 // 기본 스토리지 상태
 const defaultState: StorageState = {
   savedItems: [],
   isCapturing: false,
-  isHtmlMode: false
+  isHtmlMode: false,
 };
 
 // 모든 저장된 항목 가져오기
 export const getSavedItems = (): Promise<CapturedItem[]> => {
   return new Promise((resolve) => {
-    chrome.storage.local.get(['savedItems'], (result) => {
+    chrome.storage.local.get(["savedItems"], (result) => {
       resolve(result.savedItems || []);
     });
   });
@@ -19,7 +19,7 @@ export const getSavedItems = (): Promise<CapturedItem[]> => {
 // 캡처 상태 가져오기
 export const getCapturingState = (): Promise<boolean> => {
   return new Promise((resolve) => {
-    chrome.storage.local.get(['isCapturing'], (result) => {
+    chrome.storage.local.get(["isCapturing"], (result) => {
       resolve(result.isCapturing || false);
     });
   });
@@ -28,7 +28,7 @@ export const getCapturingState = (): Promise<boolean> => {
 // HTML 모드 상태 가져오기
 export const getHtmlModeState = (): Promise<boolean> => {
   return new Promise((resolve) => {
-    chrome.storage.local.get(['isHtmlMode'], (result) => {
+    chrome.storage.local.get(["isHtmlMode"], (result) => {
       resolve(result.isHtmlMode || false);
     });
   });
@@ -37,11 +37,11 @@ export const getHtmlModeState = (): Promise<boolean> => {
 // 모든 상태 가져오기
 export const getAllState = (): Promise<StorageState> => {
   return new Promise((resolve) => {
-    chrome.storage.local.get(['savedItems', 'isCapturing', 'isHtmlMode'], (result) => {
+    chrome.storage.local.get(["savedItems", "isCapturing", "isHtmlMode"], (result) => {
       resolve({
         savedItems: result.savedItems || defaultState.savedItems,
         isCapturing: result.isCapturing || defaultState.isCapturing,
-        isHtmlMode: result.isHtmlMode || defaultState.isHtmlMode
+        isHtmlMode: result.isHtmlMode || defaultState.isHtmlMode,
       });
     });
   });
@@ -79,7 +79,7 @@ export const setHtmlModeState = (state: boolean): Promise<void> => {
 // 토큰 가져오기
 export const getToken = (): Promise<string | null> => {
   return new Promise((resolve) => {
-    chrome.storage.local.get(['token'], (result) => {
+    chrome.storage.local.get(["token"], (result) => {
       resolve(result.token || null);
     });
   });
@@ -88,7 +88,7 @@ export const getToken = (): Promise<string | null> => {
 // 아이템 삭제하기
 export const deleteItem = async (itemId: number): Promise<void> => {
   const items = await getSavedItems();
-  const filteredItems = items.filter(item => item.id !== itemId);
+  const filteredItems = items.filter((item) => item.id !== itemId);
   return new Promise((resolve) => {
     chrome.storage.local.set({ savedItems: filteredItems }, () => {
       resolve();
@@ -103,4 +103,4 @@ export const deleteAllItems = (): Promise<void> => {
       resolve();
     });
   });
-}; 
+};

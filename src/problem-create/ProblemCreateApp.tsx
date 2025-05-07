@@ -1,19 +1,19 @@
-import { useState, useEffect } from 'react';
-import '../Global.css';
+import { useState, useEffect } from "react";
+import "../Global.css";
 
 const ProblemCreateApp: React.FC = () => {
-  const [title, setTitle] = useState('');
-  const [url, setUrl] = useState('');
-  const [summaryId, setSummaryId] = useState('');
-  const [problemFields, setProblemFields] = useState<string[]>(['', '', '', '', '', '']);
+  const [title, setTitle] = useState("");
+  const [url, setUrl] = useState("");
+  const [summaryId, setSummaryId] = useState("");
+  const [problemFields, setProblemFields] = useState<string[]>(["", "", "", "", "", ""]);
 
   // URL 파라미터 읽기
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const urlParam = params.get('url');
-    const titleParam = params.get('title');
-    const summaryIdParam = params.get('summaryId');
-    
+    const urlParam = params.get("url");
+    const titleParam = params.get("title");
+    const summaryIdParam = params.get("summaryId");
+
     if (urlParam) setUrl(urlParam);
     if (titleParam) setTitle(titleParam);
     if (summaryIdParam) setSummaryId(summaryIdParam);
@@ -31,16 +31,16 @@ const ProblemCreateApp: React.FC = () => {
 
   const handleSubmit = () => {
     // 문제 제출 로직 구현
-    alert('문제가 생성되었습니다!');
+    alert("문제가 생성되었습니다!");
   };
 
   return (
     <div className="max-w-3xl mx-auto bg-level1 text-black p-5">
       <header className="flex justify-between items-center mb-5">
         <h1 className="text-2xl font-bold text-level6 m-0">백준 코딩 테스트: 문제 만들기</h1>
-        <button 
+        <button
           className="bg-main text-white py-2 px-4 rounded hover:bg-blue-700 transition-colors text-sm font-medium"
-          onClick={() => chrome.tabs.create({ url: 'history.html' })}
+          onClick={() => chrome.tabs.create({ url: "history.html" })}
         >
           ← 캡처 기록으로 돌아가기
         </button>

@@ -22,10 +22,7 @@ export default function CreateProblemModal({
 }: CreateProblemModalProps) {
   const [numProblems, setNumProblems] = useState<number>(5);
   const [contentTypes, setContentTypes] = useState<string[]>(["text", "html"]);
-  const [questionTypes, setQuestionTypes] = useState<string[]>([
-    "multiple-choice",
-    "ox",
-  ]);
+  const [questionTypes, setQuestionTypes] = useState<string[]>(["multiple-choice", "ox"]);
 
   if (!isOpen) return null;
 
@@ -55,16 +52,11 @@ export default function CreateProblemModal({
       className="fixed inset-0 bg-black/20 flex items-center justify-center z-50"
       onClick={onClose}
     >
-      <div
-        className="bg-white rounded-lg p-6 w-full max-w-md"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="bg-white rounded-lg p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-xl font-bold mb-4">문제 생성 설정</h2>
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
-            <label className="block text-lg font-medium mb-2">
-              생성할 문제 수
-            </label>
+            <label className="block text-lg font-medium mb-2">생성할 문제 수</label>
             <select
               value={numProblems}
               onChange={(e) => setNumProblems(Number(e.target.value))}

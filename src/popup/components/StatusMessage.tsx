@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { NotificationType } from '../../types';
+import { useEffect, useState } from "react";
+import { NotificationType } from "../../types";
 
 interface StatusMessageProps {
   type: NotificationType;
@@ -8,11 +8,11 @@ interface StatusMessageProps {
   onClose?: () => void;
 }
 
-const StatusMessage: React.FC<StatusMessageProps> = ({ 
-  type, 
-  message, 
-  duration = 3000, 
-  onClose 
+const StatusMessage: React.FC<StatusMessageProps> = ({
+  type,
+  message,
+  duration = 3000,
+  onClose,
 }) => {
   const [visible, setVisible] = useState(true);
 
@@ -27,15 +27,12 @@ const StatusMessage: React.FC<StatusMessageProps> = ({
 
   if (!visible) return null;
 
-  const styles = type === 'success' 
-    ? 'bg-green-50 text-success border-l-2 border-success' 
-    : 'bg-red-50 text-error border-l-2 border-error';
+  const styles =
+    type === "success"
+      ? "bg-green-50 text-success border-l-2 border-success"
+      : "bg-red-50 text-error border-l-2 border-error";
 
-  return (
-    <div className={`py-2 px-3 rounded mb-1.5 text-xs ${styles}`}>
-      {message}
-    </div>
-  );
+  return <div className={`py-2 px-3 rounded mb-1.5 text-xs ${styles}`}>{message}</div>;
 };
 
-export default StatusMessage; 
+export default StatusMessage;

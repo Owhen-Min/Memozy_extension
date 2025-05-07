@@ -25,9 +25,7 @@ export default function CreateSummaryModal({
   pageUrl,
   pageTitle,
 }: CreateSummaryModalProps) {
-  const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(
-    new Set()
-  );
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(new Set());
   const [isComparisonModalOpen, setIsComparisonModalOpen] = useState(false);
   const [markdownContent, setMarkdownContent] = useState("");
   const [selectedItems, setSelectedItems] = useState<CapturedItem[]>([]);
@@ -115,14 +113,8 @@ export default function CreateSummaryModal({
       );
     } else if (typeof item.content === "string") {
       // HTML 태그 제거 및 &nbsp;를 공백으로 치환
-      const textContent = item.content
-        .replace(/<[^>]*>?/gm, "")
-        .replace(/&nbsp;/g, " ");
-      return (
-        <p className="text-sm text-gray-600 line-clamp-2">
-          {textContent || "(내용 없음)"}
-        </p>
-      );
+      const textContent = item.content.replace(/<[^>]*>?/gm, "").replace(/&nbsp;/g, " ");
+      return <p className="text-sm text-gray-600 line-clamp-2">{textContent || "(내용 없음)"}</p>;
     }
     return <p className="text-sm text-gray-500 italic">(미리보기 불가)</p>;
   };
@@ -137,16 +129,11 @@ export default function CreateSummaryModal({
           className="bg-white rounded-lg p-6 w-full max-w-lg max-h-[80vh] flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
-          <h2 className="text-xl font-bold mb-4 flex-shrink-0">
-            요약할 항목 선택
-          </h2>
+          <h2 className="text-xl font-bold mb-4 flex-shrink-0">요약할 항목 선택</h2>
           <p className="text-sm text-gray-600 mb-4 flex-shrink-0">
             요약에 포함할 캡처 항목을 선택해주세요.
           </p>
-          <form
-            onSubmit={handleSubmit}
-            className="flex flex-col flex-grow overflow-hidden"
-          >
+          <form onSubmit={handleSubmit} className="flex flex-col flex-grow overflow-hidden">
             <div className="mb-4 flex-grow overflow-y-auto overflow-x-hidden space-y-3 pr-2">
               {items.map((item) => (
                 <div
@@ -164,22 +151,13 @@ export default function CreateSummaryModal({
                     className="mr-3 mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
                     id={`item-${item.id}`}
                   />
-                  <label
-                    htmlFor={`item-${item.id}`}
-                    className="flex-1 cursor-pointer"
-                  >
+                  <label htmlFor={`item-${item.id}`} className="flex-1 cursor-pointer">
                     <span
                       className={`font-medium ${
-                        selectedItemIds.has(item.id)
-                          ? "text-blue-800"
-                          : "text-gray-800"
+                        selectedItemIds.has(item.id) ? "text-blue-800" : "text-gray-800"
                       }`}
                     >
-                      {item.type === "text"
-                        ? "텍스트"
-                        : item.type === "image"
-                        ? "이미지"
-                        : "기타"}
+                      {item.type === "text" ? "텍스트" : item.type === "image" ? "이미지" : "기타"}
                     </span>
                     {renderContentPreview(item)}
                   </label>
