@@ -65,7 +65,6 @@ function compareDomPaths(pathA: string | undefined, pathB: string | undefined): 
 
 export default function History() {
   const { isAuthenticated, authLoading, login, authToken } = useAuth();
-  const [savedItems, setSavedItems] = useState<CapturedItem[]>([]);
   const [urlGroups, setUrlGroups] = useState<UrlGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<ItemType | "all">("all");
@@ -143,7 +142,6 @@ export default function History() {
   // 저장된 아이템 불러오기 함수 분리 (재사용 위해)
   const loadItems = useCallback(async () => {
     if (!isAuthenticated) {
-      setSavedItems([]);
       setUrlGroups([]);
       setLoading(false);
       return;
@@ -152,26 +150,21 @@ export default function History() {
     setLoading(true);
     try {
       const result = await chrome.storage.local.get(["savedItems", "urlGroups"]);
-
       // URL 그룹 데이터 확인
       if (result.urlGroups) {
         // 이미 새 형식으로 저장된 데이터가 있는 경우
         setUrlGroups(result.urlGroups as UrlGroup[]);
-        setSavedItems((result.savedItems || []) as CapturedItem[]); // 호환성 유지
       } else {
         // 이전 형식의 데이터만 있는 경우, 변환 필요
         const items = (result.savedItems || []) as CapturedItem[];
         const groups = organizeItemsIntoUrlGroups(items);
 
         setUrlGroups(groups);
-        setSavedItems(items); // 호환성 유지
-
         // 변환된 데이터 저장
         await chrome.storage.local.set({ urlGroups: groups });
       }
     } catch (error) {
       console.error("아이템 로드/정렬 오류:", error);
-      setSavedItems([]);
       setUrlGroups([]);
     } finally {
       setLoading(false);
@@ -401,35 +394,42 @@ export default function History() {
   };
 
   // 필터링된 URL 그룹
-  const filteredGroups = urlGroups.filter((group) => {
-    // 검색어 필터링
-    if (searchTerm.trim() !== "") {
-      const searchText = searchTerm.toLowerCase();
+  const filteredGroups = urlGroups
+    .filter((group) => {
+      // 검색어 필터링
+      if (searchTerm.trim() !== "") {
+        const searchText = searchTerm.toLowerCase();
 
-      // 그룹 제목, URL 검색
-      if (
-        group.title.toLowerCase().includes(searchText) ||
-        group.url.toLowerCase().includes(searchText)
-      ) {
-        return true;
+        // 그룹 제목, URL 검색
+        if (
+          group.title.toLowerCase().includes(searchText) ||
+          group.url.toLowerCase().includes(searchText)
+        ) {
+          return true;
+        }
+
+        // 그룹 내 아이템 콘텐츠 검색
+        return group.items.some((item) => {
+          if (item.type === "text" && typeof item.content === "string") {
+            return item.content.toLowerCase().includes(searchText);
+          }
+          return false;
+        });
       }
 
-      // 그룹 내 아이템 콘텐츠 검색
-      return group.items.some((item) => {
-        if (item.type === "text" && typeof item.content === "string") {
-          return item.content.toLowerCase().includes(searchText);
-        }
-        return false;
-      });
-    }
+      // 타입 필터링
+      if (filter !== "all") {
+        return group.items.some((item) => item.type === filter);
+      }
 
-    // 타입 필터링
-    if (filter !== "all") {
-      return group.items.some((item) => item.type === filter);
-    }
-
-    return true;
-  });
+      return true;
+    })
+    .sort((a, b) => {
+      // 최신 시간순 정렬
+      const timeA = new Date(a.timestamp).getTime();
+      const timeB = new Date(b.timestamp).getTime();
+      return timeB - timeA; // 최신순
+    });
 
   // 타입 필터링된 아이템 (그룹 내)
   const getFilteredItemsInGroup = (group: UrlGroup) => {
@@ -496,7 +496,6 @@ export default function History() {
         return group;
       });
 
-      // 저장 - 이제 개별 아이템에는 summary 정보를 저장하지 않음
       await chrome.storage.local.set({
         urlGroups: updatedGroups,
       });
@@ -632,9 +631,10 @@ export default function History() {
   if (loading) {
     return (
       <div className="max-w-3xl flex flex-col h-screen items-center justify-center mx-auto bg-level1 text-black p-5">
+        <img src="/icon128.png" alt="Memozy" className="w-9 h-9 mb-4" />
         <h1 className="text-3xl font-bold text-level6 m-0 mb-4">Memozy</h1>
         <div className="flex items-center justify-center gap-2 text-gray">
-          <div className="w-5 h-5 border-2 border-gray/20 rounded-full border-t-main animate-spin"></div>
+          <div className="w-5 h-5 border-2 border-gray/20 rounded-full border-t-main animate-spin" />
           <span>캡처 기록 로드 중...</span>
         </div>
       </div>
@@ -643,7 +643,6 @@ export default function History() {
 
   return (
     <div className="max-w-3xl @container flex flex-col h-screen mx-auto bg-level1 text-black px-5">
-      {/* header 높이를 명시적으로 지정 (필터가 있을 때 140px, 없을 때 100px) */}
       <header className="flex flex-col sticky top-0 justify-between items-center bg-level1 pt-8 pb-3 border-b border-light-gray z-30 h-[160px]">
         <div className="flex justify-between items-center w-full">
           <div className="flex items-center gap-2">
@@ -652,13 +651,22 @@ export default function History() {
           </div>
           <div className="flex gap-2.5">
             {urlGroups.length > 0 && (
-              <button
-                className="bg-warning text-white border-0 py-2 px-4 rounded hover:bg-error transition-colors font-medium text-sm"
-                onClick={handleDeleteAll}
-                title="모든 기록 삭제"
-              >
-                모두 삭제
-              </button>
+              <>
+                <button
+                  className="bg-main text-white border-0 py-2 px-4 rounded hover:bg-blue-700 transition-colors font-medium text-sm"
+                  onClick={() => window.open("https://memozy.site/collection")}
+                  title="웹으로 이동"
+                >
+                  웹으로
+                </button>
+                <button
+                  className="bg-warning text-white border-0 py-2 px-4 rounded hover:bg-error transition-colors font-medium text-sm"
+                  onClick={handleDeleteAll}
+                  title="모든 기록 삭제"
+                >
+                  모두 삭제
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -713,7 +721,6 @@ export default function History() {
                     <span className="mr-1">
                       {expandedGroups === group.url ? <ArrowDown /> : <ArrowRight />}
                     </span>
-                    {/* favicon 표시 (있을 때만) */}
                     {group.favicon && (
                       <img
                         src={group.favicon}
@@ -819,7 +826,6 @@ export default function History() {
                         onDelete={handleDelete}
                         onDownload={handleDownload}
                         onEdit={handleEdit}
-                        showUrl={false}
                       />
                     ))}
                   </div>

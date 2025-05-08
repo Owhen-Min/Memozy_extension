@@ -8,7 +8,6 @@ interface CapturedItemCardProps {
   onDelete: (id: number) => void;
   onDownload: (item: CapturedItem) => void;
   onEdit: (item: CapturedItem, newContent: string) => void;
-  showUrl?: boolean;
 }
 
 const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
@@ -16,7 +15,6 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
   onDelete,
   onDownload,
   onEdit,
-  showUrl = true, // 기본값은 true
 }) => {
   const [showScrollButton, setShowScrollButton] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -39,7 +37,7 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
     const handleScroll = () => {
       if (groupContainerRef.current) {
         const scrollTop = groupContainerRef.current.scrollTop;
-        setShowScrollButton(scrollTop > 200); // 200px 이상 스크롤 되었을 때 버튼 표시
+        setShowScrollButton(scrollTop > 800); // 800px 이상 스크롤 되었을 때 버튼 표시
       }
     };
 
