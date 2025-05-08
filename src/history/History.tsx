@@ -617,10 +617,10 @@ export default function History() {
           먼저 로그인이 필요합니다.
         </p>
         <button
-          className="bg-main text-white py-2.5 px-6 rounded text-base font-medium hover:bg-blue-700 transition-colors"
+          className="bg-main text-white py-2.5 px-6 rounded flex items-center justify-center gap-1 font-medium hover:bg-blue-700 transition-all border border-blue-600"
           onClick={login}
         >
-          Google 계정으로 로그인
+          <span>Google 계정으로 로그인</span>
         </button>
         <p className="text-sm text-gray mt-4">로그인 후 이 페이지가 자동으로 새로고침됩니다.</p>
       </div>
@@ -653,18 +653,20 @@ export default function History() {
             {urlGroups.length > 0 && (
               <>
                 <button
-                  className="bg-main text-white border-0 py-2 px-4 rounded hover:bg-blue-700 transition-colors font-medium text-sm"
+                  className="flex flex-col text-xs w-14 h-13 px-1 rounded border bg-main/80 border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center"
                   onClick={() => window.open("https://memozy.site/collection")}
                   title="웹으로 이동"
                 >
-                  웹으로
+                  <span className="text-lg">🌐</span>
+                  <span className="text-sm">웹으로</span>
                 </button>
                 <button
-                  className="bg-warning text-white border-0 py-2 px-4 rounded hover:bg-error transition-colors font-medium text-sm"
+                  className="flex flex-col w-15 h-13 px-1 rounded border bg-warning/80 border-warning text-black hover:bg-error hover:text-white hover:border-error transition-all flex items-center justify-center"
                   onClick={handleDeleteAll}
                   title="모든 기록 삭제"
                 >
-                  모두 삭제
+                  <span className="text-lg">🗑️</span>
+                  <span className="text-sm">전체삭제</span>
                 </button>
               </>
             )}
@@ -757,7 +759,7 @@ export default function History() {
                     ) : (
                       <>
                         <span className="text-lg">📋</span>
-                        <span className="ml-0.5 text-xs">요약</span>
+                        <span className="text-xs">요약</span>
                       </>
                     )}
                   </button>
@@ -787,7 +789,7 @@ export default function History() {
                     ) : (
                       <>
                         <span className="text-lg">📝</span>
-                        <span className="ml-0.5 text-xs">문제</span>
+                        <span className="text-xs">문제</span>
                       </>
                     )}
                   </button>
@@ -800,7 +802,7 @@ export default function History() {
                     title="원본 페이지 새 탭으로 열기"
                   >
                     <span className="text-lg">🔗</span>
-                    <span className="ml-0.5 text-xs">링크</span>
+                    <span className="text-xs">링크</span>
                   </button>
                   <button
                     className="flex flex-col text-xs w-[35px] h-[50px] px-1 rounded border bg-red-50 border-red-200 text-red-600 hover:bg-red-100 cursor-pointer transition-all flex items-center justify-center gap-1"
@@ -811,7 +813,7 @@ export default function History() {
                     title="이 그룹의 모든 항목 삭제"
                   >
                     <span className="text-lg">🗑️</span>
-                    <span className="ml-0.5 text-xs">삭제</span>
+                    <span className="text-xs">삭제</span>
                   </button>
                 </div>
               </div>

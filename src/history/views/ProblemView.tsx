@@ -215,13 +215,15 @@ export default function ProblemView() {
           <span className="text-xl font-bold line-clamp-1">{quizSource?.title}</span>
           <div className="flex ml-auto items-center gap-2">
             <button
-              className="text-sm font-medium border-level3 bg-level2 py-2 px-2 rounded-md cursor-pointer border text-level6 hover:bg-level3 transition-colors flex-shrink-0"
+              className="flex flex-col text-xs w-14 h-12 px-1 rounded border bg-level2 border-level3 text-level6 hover:bg-level3 transition-all flex items-center justify-center"
               onClick={() => navigate("/")}
             >
-              목록으로
+              <span className="text-lg">🏠</span>
+              <span className="text-base">홈</span>
             </button>
-            <button className="text-sm font-medium bg-main text-white py-2 px-3 rounded-md cursor-pointer hover:bg-blue-700 transition-colors flex-shrink-0">
-              문제 재요청
+            <button className="flex flex-col text-xs w-14 h-12 px-1 rounded border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center">
+              <span className="text-lg">🔄</span>
+              <span className="text-base">재요청</span>
             </button>
           </div>
         </div>
@@ -308,7 +310,7 @@ export default function ProblemView() {
           </select>
           <span className="ml-2 text-base font-medium flex-shrink-0">에 </span>
           <button
-            className={`ml-2 text-sm font-medium bg-main text-white py-2 px-3 rounded-md cursor-pointer hover:bg-blue-700 transition-colors ${
+            className={`ml-3 flex flex-col text-base w-[80px] h-[40px] px-1 rounded border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center ${
               isSavingQuiz ? "opacity-50 cursor-not-allowed" : ""
             }`}
             onClick={handleSave}
@@ -340,13 +342,13 @@ export default function ProblemView() {
             </div>
             <div className="flex justify-end gap-2">
               <button
-                className="text-sm font-medium border border-gray-300 bg-gray-100 py-2 px-4 rounded-md cursor-pointer hover:bg-gray-200 transition-colors"
+                className="flex flex-col text-xs w-[60px] h-[40px] px-1 rounded border bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100 transition-all flex items-center justify-center"
                 onClick={() => setIsModalOpen(false)}
               >
                 취소
               </button>
               <button
-                className="text-sm font-medium bg-main text-white py-2 px-4 rounded-md cursor-pointer hover:bg-blue-700 transition-colors"
+                className="flex flex-col text-xs w-[80px] h-[40px] px-1 rounded border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center"
                 onClick={handleCreateCollection}
                 disabled={isCreatingCollection}
               >
@@ -383,13 +385,13 @@ export default function ProblemView() {
             </p>
             <div className="flex justify-center gap-3">
               <button
-                className="text-sm font-medium border border-gray-300 bg-gray-100 py-2 px-4 rounded-md cursor-pointer hover:bg-gray-200 transition-colors"
+                className="flex flex-col text-xs w-[100px] h-[40px] px-1 rounded border bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100 transition-all flex items-center justify-center"
                 onClick={handleNavigateToHome}
               >
                 익스텐션 홈으로
               </button>
               <button
-                className="text-sm font-medium bg-main text-white py-2 px-4 rounded-md cursor-pointer hover:bg-blue-700 transition-colors"
+                className="flex flex-col text-xs w-[100px] h-[40px] px-1 rounded border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center"
                 onClick={handleNavigateToCollection}
               >
                 컬렉션 확인하기

@@ -149,10 +149,11 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
         <div className="flex gap-2">
           <button
             onClick={() => onDownload(item)}
-            className="bg-main text-white border-0 py-2 px-4 rounded hover:bg-blue-700 transition-colors font-medium text-sm"
+            className="flex flex-col text-xs w-[35px] h-[50px] px-1 rounded border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center gap-1"
             title="다운로드"
           >
-            다운로드
+            <span className="text-lg">📥</span>
+            <span className="text-xs">저장</span>
           </button>
 
           <button
@@ -160,18 +161,20 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
               setIsEditing(true);
               setEditContent(typeof item.content === "string" ? item.content : "");
             }}
-            className="bg-blue-500 text-white border-0 py-2 px-4 rounded hover:bg-blue-600 transition-colors font-medium text-sm"
+            className="flex flex-col text-xs w-[35px] h-[50px] px-1 rounded border bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100 transition-all flex items-center justify-center gap-1"
             title="수정"
           >
-            수정
+            <span className="text-lg">✏️</span>
+            <span className="text-xs">수정</span>
           </button>
 
           <button
             onClick={() => onDelete(item.id)}
-            className="bg-error text-white border-0 py-2 px-4 rounded hover:bg-red-700 transition-colors font-medium text-sm"
+            className="flex flex-col text-xs w-[35px] h-[50px] px-1 rounded border bg-red-50 border-red-200 text-red-600 hover:bg-red-100 transition-all flex items-center justify-center gap-1"
             title="삭제"
           >
-            삭제
+            <span className="text-lg">🗑️</span>
+            <span className="text-xs">삭제</span>
           </button>
         </div>
       </div>
@@ -189,13 +192,13 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
           <div className="flex justify-end gap-2">
             <button
               onClick={handleEditCancel}
-              className="bg-gray-200 text-gray-700 border-0 py-2 px-4 rounded hover:bg-gray-300 transition-colors font-medium text-sm"
+              className="flex flex-col text-xs w-[60px] h-[40px] px-1 rounded border bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100 transition-all flex items-center justify-center gap-1"
             >
               취소
             </button>
             <button
               onClick={handleEditSubmit}
-              className="bg-blue-500 text-white border-0 py-2 px-4 rounded hover:bg-blue-600 transition-colors font-medium text-sm"
+              className="flex flex-col text-xs w-[60px] h-[40px] px-1 rounded border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center gap-1"
             >
               저장
             </button>
@@ -209,7 +212,7 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
             <div className="sticky bottom-4 z-20 flex justify-end px-4 pointer-events-none">
               <button
                 onClick={scrollToTop}
-                className="bg-main text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors pointer-events-auto"
+                className="flex flex-col w-[40px] h-[40px] rounded-full border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center"
                 title="위로 이동"
               >
                 <svg

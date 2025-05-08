@@ -13,12 +13,7 @@ export interface ProblemCreationData {
   quizTypes: string[];
 }
 
-export default function CreateProblemModal({
-  isOpen,
-  onClose,
-  onSubmit,
-  item,
-}: CreateProblemModalProps) {
+export default function CreateProblemModal({ isOpen, onClose, onSubmit }: CreateProblemModalProps) {
   const [quizCount, setQuizCount] = useState<number>(5);
   const [quizTypes, setQuizTypes] = useState<string[]>(["사지선다"]);
 
@@ -107,13 +102,13 @@ export default function CreateProblemModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border rounded hover:bg-gray-100"
+              className="flex items-center justify-center w-[60px] h-[40px] px-1 rounded border bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100 transition-all text-xs"
             >
               취소
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              className="flex items-center justify-center w-[80px] h-[40px] px-1 rounded border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all text-xs"
               onClick={handleSubmit}
             >
               생성하기
