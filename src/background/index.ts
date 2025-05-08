@@ -1,6 +1,6 @@
 import { DiffDOM } from "diff-dom";
 import * as htmlparser from "htmlparser2";
-import { CapturedItem, MergeAction, Message, Response, ImageContent } from "../types";
+import { CapturedItem, MergeAction, Message, Response, ImageContent, UrlGroup } from "../types";
 import { Node as HtmlParserNode, DataNode, Element as HtmlParserElement } from "domhandler";
 
 // diff-dom 타입 직접 정의 (간소화 버전)
@@ -227,8 +227,6 @@ function mergeContent(
       mergedItem.meta = {
         ...mergedItem.meta,
         domPath: newItem.meta?.domPath,
-        merged: true,
-        lastMergeTimestamp: new Date().toISOString(),
       };
       break;
 
@@ -239,12 +237,6 @@ function mergeContent(
           action === "append"
             ? `${mergedItem.content}\n${newItem.content}`
             : `${newItem.content}\n${mergedItem.content}`;
-
-        mergedItem.meta = {
-          ...mergedItem.meta,
-          merged: true,
-          lastMergeTimestamp: new Date().toISOString(),
-        };
       }
       break;
   }
@@ -252,431 +244,252 @@ function mergeContent(
   return mergedItem;
 }
 
-// 콘텐츠 스크립트에서 메시지 받기
-chrome.runtime.onMessage.addListener(
-  (message: Message & { markdownContent?: string }, sender, sendResponse) => {
-    console.log(
-      `[Background] Received message: Action=${message?.action}, Sender=${sender?.tab?.id || "N/A"}`
-    );
-
-    // 메시지 로깅
-    console.log("백그라운드 메시지 수신:", message.action, sender.tab?.id);
-
-    // 컨텍스트가 무효화되면 모든 메시지 처리 중단
-    if (!isContextValid) {
-      console.warn("[Background] Extension context invalidated. Stopping message processing.");
-      sendResponse({ success: false, error: "Extension context invalidated" });
-      return false;
-    }
-
+// 아이템을 URL 그룹에 업데이트하는 함수
+function updateUrlGroups(newItem: CapturedItem): Promise<void> {
+  return new Promise(async (resolve, reject) => {
     try {
-      if (message.action === "contentScriptReady") {
-        console.log("콘텐츠 스크립트 준비 완료:", sender.tab?.id);
-        sendResponse({ success: true });
-        return true;
-      } else if (message.action === "contentScriptCheck") {
-        console.log("콘텐츠 스크립트 상태 확인:", sender.tab?.id);
-        sendResponse({ success: true });
-        return true;
-      } else if (message.action === "contentCaptured") {
-        const currentTab = sender.tab;
-        if (!currentTab) {
-          console.error("Cannot get sender tab information.");
-          sendResponse({ success: false, error: "Missing tab information" });
-          return false; // Return false for sync response
-        }
-        const pageTitle = currentTab.title || "제목 없음";
-        const pageUrl = currentTab.url || "";
+      // 현재 저장된 데이터 가져오기
+      const result = await chrome.storage.local.get(["urlGroups"]);
+      const currentGroups = (result.urlGroups || []) as UrlGroup[];
 
-        try {
-          // <<< Outer try block >>>
-          // Create newItem without displayContent
-          const newItem: Omit<CapturedItem, "displayContent"> = {
-            id: Date.now(),
-            type: message.type!,
-            content:
-              typeof message.content === "string"
-                ? message.content
-                : typeof message.content === "object" &&
-                    message.content !== null &&
-                    "dataUrl" in message.content
-                  ? message.content
-                  : "",
-            pageTitle: pageTitle,
-            pageUrl: pageUrl,
-            timestamp: new Date().toISOString(),
-            meta: message.meta
-              ? { ...message.meta, format: message.type === "image" ? "png" : "html" }
-              : { format: message.type === "image" ? "png" : "html" },
-          };
+      // 해당 URL의 그룹 찾기
+      const groupIndex = currentGroups.findIndex((group) => group.url === newItem.pageUrl);
 
-          let isValidForProcessing = false;
+      if (groupIndex >= 0) {
+        // 기존 그룹이 있는 경우 업데이트
+        const updatedGroups = [...currentGroups];
+        const group = updatedGroups[groupIndex];
 
-          // Simplified validation
-          if (newItem.type === "text" && typeof newItem.content === "string") {
-            if (newItem.content.trim() !== "") {
-              console.log(
-                `Processing text capture (HTML only). HTML Length: ${newItem.content.length}`
-              );
-              isValidForProcessing = true;
-            } else {
-              console.warn("Received text capture with empty content string.");
-            }
-          } else if (newItem.type === "image") {
-            newItem.content =
-              typeof message.content === "object" &&
-              message.content !== null &&
-              "dataUrl" in message.content
-                ? message.content
-                : { dataUrl: "", type: "", name: "" };
-            if (typeof newItem.content === "object" && newItem.content.dataUrl) {
-              isValidForProcessing = true;
-              console.log("Processing image capture.");
-            } else {
-              console.warn("Received image capture with invalid content.");
-            }
-          } else {
-            console.warn(
-              `Unsupported capture type or invalid content: type=${newItem.type}, content_type=${typeof message.content}`
-            );
-          }
-
-          if (!isValidForProcessing) {
-            console.error("Item is not valid for processing. Aborting save.");
-            sendResponse({ success: false, error: "Invalid item data for saving." });
-            return true; // Indicate async response handled
-          }
-
-          console.log("Prepared newItem (HTML only):", {
-            // Log prepared item
-            id: newItem.id,
-            type: newItem.type,
-            contentLength: typeof newItem.content === "string" ? newItem.content.length : "N/A",
-            meta: newItem.meta,
-          });
-
-          // --- Storage Operations ---
-          chrome.storage.local.get(["savedItems"], function (result) {
-            try {
-              // Inner try
-              // Type assertion needed because storage might still contain old items
-              const savedItems = (result.savedItems || []) as CapturedItem[];
-              let isDuplicate = false;
-              let itemUpdated = false;
-              let updatedItemId: number | null = null;
-              let shouldSaveNew = true;
-
-              // --- Merge/Update Logic (operates on newItem.content = HTML) ---
-              if (newItem.type === "text" && typeof newItem.content === "string") {
-                const existingItems = savedItems.filter(
-                  (item) =>
-                    item.type === "text" &&
-                    item.pageUrl === newItem.pageUrl &&
-                    typeof item.content === "string"
-                );
-                const newVNodes = parseHtmlToVNodes(newItem.content);
-                const newContentLength = newItem.content.length;
-                const newPath = newItem.meta?.domPath;
-
-                if (newVNodes.length > 0) {
-                  for (let i = 0; i < existingItems.length; i++) {
-                    const existingItem = existingItems[i];
-                    if (typeof existingItem.content !== "string") continue;
-                    try {
-                      const existingVNodes = parseHtmlToVNodes(existingItem.content);
-                      const existingContentLength = existingItem.content.length;
-                      const existingPath = existingItem.meta?.domPath;
-
-                      if (existingVNodes.length > 0) {
-                        const virtualNewRoot: VNode = {
-                          nodeName: "DIV",
-                          attributes: {},
-                          childNodes: newVNodes,
-                        };
-                        const virtualExistingRoot: VNode = {
-                          nodeName: "DIV",
-                          attributes: {},
-                          childNodes: existingVNodes,
-                        };
-                        const diff = dd.diff(virtualExistingRoot, virtualNewRoot);
-                        const MAX_DIFF_LENGTH = 5;
-
-                        if (diff.length <= MAX_DIFF_LENGTH) {
-                          isDuplicate = true;
-                          shouldSaveNew = false;
-
-                          const mergeAction = determineMergeStrategy(
-                            newPath,
-                            existingPath,
-                            newContentLength,
-                            existingContentLength,
-                            diff
-                          );
-
-                          if (mergeAction !== "none") {
-                            const originalItemIndex = savedItems.findIndex(
-                              (item) => item.id === existingItem.id
-                            );
-                            if (originalItemIndex !== -1) {
-                              const mergedItem = mergeContent(
-                                newItem,
-                                savedItems[originalItemIndex],
-                                mergeAction
-                              );
-                              savedItems[originalItemIndex] = mergedItem;
-                              itemUpdated = true;
-                              updatedItemId = existingItem.id;
-                              console.log(`Item ${updatedItemId} action: ${mergeAction}`);
-                            }
-                          }
-                          break;
-                        } // end if diff
-                      } // end if existingVNodes
-                    } catch (compareError) {
-                      console.error(`Compare error for ${existingItem.id}:`, compareError);
-                    }
-                  } // end for loop
-                } // end if newVNodes > 0
-                // --- End Merge/Update Logic ---
-              } else {
-                // Non-text items, no merge needed
-                shouldSaveNew = true;
-              }
-
-              // --- Final Save Decision ---
-              if (itemUpdated) {
-                console.log("[DEBUG] Action: Updating existing item (HTML only)...");
-                chrome.storage.local.set({ savedItems: savedItems as any }, function () {
-                  // Use type assertion for storage set
-                  if (chrome.runtime.lastError) {
-                    console.error("[DEBUG] Storage set error (update):", chrome.runtime.lastError);
-                    sendResponse({ success: false, error: chrome.runtime.lastError.message });
-                    return;
-                  }
-                  console.log(`[DEBUG] Item (ID: ${updatedItemId}) update saved successfully.`);
-                  console.log(`Item (ID: ${updatedItemId}) updated/merged successfully.`);
-                  if (currentTab && currentTab.id) {
-                    try {
-                      let ni = savedItems.find((it) => it.id === updatedItemId) || newItem;
-                      chrome.tabs.sendMessage(currentTab.id, {
-                        action: "savingComplete",
-                        item: ni,
-                      });
-                    } catch (e) {
-                      console.error("Send msg error:", e);
-                    }
-                  }
-                  chrome.action.setBadgeText({ text: savedItems.length.toString() });
-                  chrome.action.setBadgeBackgroundColor({ color: "#4285f4" });
-                  // 상태와 메시지 포함하여 응답
-                  sendResponse({
-                    success: true,
-                    status: "item_updated", // 업데이트 상태
-                    itemId: updatedItemId,
-                    message: "항목이 업데이트되었습니다.", // 사용자 메시지
-                  });
-                });
-              } else if (isDuplicate) {
-                console.log("[DEBUG] Action: Skipping duplicate item (HTML only)...");
-                // 상태와 메시지 포함하여 응답 (실패로 처리)
-                sendResponse({
-                  success: false, // 중복 저장은 실패로 간주
-                  status: "skipped_duplicate", // 건너뛰기 상태
-                  error: "유사한 항목이 이미 존재하여 저장하지 않았습니다.", // 에러 메시지
-                  message: "유사한 항목이 이미 존재하여 저장하지 않았습니다.", // 사용자 메시지 (선택적)
-                });
-              } else {
-                // shouldSaveNew is true
-                console.log("[DEBUG] Action: Saving new item (HTML only)...");
-                // Push the newItem (which is Omit<CapturedItem, 'displayContent'>)
-                // Need to cast savedItems for storage set
-                savedItems.push(newItem as CapturedItem);
-                chrome.storage.local.set({ savedItems: savedItems as any }, function () {
-                  if (chrome.runtime.lastError) {
-                    console.error("[DEBUG] Storage set error (new):", chrome.runtime.lastError);
-                    sendResponse({ success: false, error: chrome.runtime.lastError.message });
-                    return;
-                  }
-                  console.log("[DEBUG] New item saved successfully.");
-                  console.log("New item saved:", newItem.type);
-                  if (currentTab && currentTab.id) {
-                    try {
-                      chrome.tabs.sendMessage(currentTab.id, {
-                        action: "savingComplete",
-                        item: newItem,
-                      });
-                    } catch (e) {
-                      console.error("Send msg error:", e);
-                    }
-                  }
-                  chrome.action.setBadgeText({ text: savedItems.length.toString() });
-                  chrome.action.setBadgeBackgroundColor({ color: "#4285f4" });
-                  // 상태 포함하여 응답 (message는 필요시 추가)
-                  sendResponse({
-                    success: true,
-                    status: "ok", // 정상 저장 상태
-                    itemId: newItem.id,
-                  });
-                });
-              }
-            } catch (storageError: any) {
-              // <<< Inner catch block >>>
-              console.error("Error during storage operation:", storageError);
-              sendResponse({ success: false, error: storageError.message });
-            }
-          }); // end storage.local.get
-        } catch (outerError: any) {
-          // <<< Outer catch block >>>
-          console.error("Error processing captured content:", outerError);
-          sendResponse({ success: false, error: outerError.message });
-        }
-        return true; // Indicate async response is intended
-      } else if (message.action === "openHistoryPage") {
-        chrome.tabs.create({
-          url: chrome.runtime.getURL("history.html"),
-        });
-        sendResponse({ success: true } as Response);
-        return false;
-      } else if (message.action === "downloadItem") {
-        const item = message.item as CapturedItem;
-        const markdownContent = message.markdownContent; // Get pre-converted Markdown
-
-        if ((item.type === "text" || item.type === "html") && typeof markdownContent === "string") {
-          // Check for markdownContent
-          try {
-            // Use the pre-converted markdownContent directly
-            const blob = new Blob([markdownContent], { type: "text/markdown" }); // Use markdown MIME type
-            const fileReader = new FileReader();
-            fileReader.onloadend = function () {
-              const dataUrl = fileReader.result as string;
-              const safeTitle = (item.pageTitle || "untitled")
-                .replace(/[^a-zA-Z0-9가-힣\s]/g, "_")
-                .substring(0, 30);
-              const extension = "md"; // Set extension to md
-              chrome.downloads.download(
-                {
-                  url: dataUrl,
-                  filename: `${safeTitle}-${item.id}.${extension}`, // Use .md extension
-                },
-                (downloadId) => {
-                  if (chrome.runtime.lastError) {
-                    console.error("Markdown 다운로드 오류:", chrome.runtime.lastError);
-                    sendResponse({
-                      success: false,
-                      error: chrome.runtime.lastError.message,
-                    } as Response);
-                  } else {
-                    sendResponse({ success: true, downloadId: downloadId } as Response);
-                  }
-                }
-              );
-            };
-
-            fileReader.onerror = function () {
-              console.error("파일 읽기 오류");
-              sendResponse({ success: false, error: "FileReader 오류" } as Response);
-            };
-
-            fileReader.readAsDataURL(blob);
-          } catch (error: any) {
-            console.error("Markdown 다운로드 오류:", error);
-            sendResponse({ success: false, error: error.message } as Response);
-          }
-        } else if (item.type === "image") {
-          // Image download logic remains the same
-          try {
-            const imgContent = item.content as ImageContent;
-            const extension = imgContent.type ? imgContent.type.split("/")[1] : "png";
-            const safeTitle = (item.pageTitle || "image")
-              .replace(/[^a-zA-Z0-9가-힣\s]/g, "_")
-              .substring(0, 30);
-            const filename = imgContent.name
-              ? `${safeTitle}-${imgContent.name}`
-              : `${safeTitle}-${item.id}.${extension}`;
-
-            chrome.downloads.download(
-              {
-                url: imgContent.dataUrl,
-                filename: filename,
-              },
-              (downloadId) => {
-                if (chrome.runtime.lastError) {
-                  console.error("이미지 다운로드 오류:", chrome.runtime.lastError);
-                  sendResponse({
-                    success: false,
-                    error: chrome.runtime.lastError.message,
-                  } as Response);
-                } else {
-                  sendResponse({ success: true, downloadId: downloadId } as Response);
-                }
-              }
-            );
-          } catch (error: any) {
-            console.error("이미지 다운로드 오류:", error);
-            sendResponse({ success: false, error: error.message } as Response);
-          }
+        // 아이템 추가 또는 업데이트
+        const itemIndex = group.items.findIndex((item) => item.id === newItem.id);
+        if (itemIndex >= 0) {
+          // 기존 아이템 업데이트
+          group.items[itemIndex] = newItem;
         } else {
-          // Handle cases where markdownContent is missing for text/html types
-          console.error("다운로드할 Markdown 콘텐츠가 없거나 타입이 잘못되었습니다.", item.type);
-          sendResponse({
-            success: false,
-            error: "Markdown 콘텐츠 누락 또는 잘못된 타입",
-          } as Response);
+          // 새 아이템 추가
+          group.items.push(newItem);
         }
 
-        return true; // 비동기 응답
-      } else if (message.action === "extractContent") {
-        const itemId = message.itemId as number;
-        if (!itemId) {
-          console.error("항목 ID가 필요합니다.");
-          sendResponse({ success: false, error: "항목 ID가 필요합니다." } as Response);
-          return true;
+        // 그룹 타임스탬프 업데이트 (최신 날짜로)
+        const itemTime = new Date(newItem.timestamp).getTime();
+        const groupTime = new Date(group.timestamp).getTime();
+        if (itemTime > groupTime) {
+          group.timestamp = newItem.timestamp;
         }
 
-        extractContentFromSavedHtml(itemId)
-          .then((extractedContent) => {
-            sendResponse({ success: true, extractedContent } as Response);
-          })
-          .catch((error) => {
-            console.error("콘텐츠 추출 오류:", error);
-            sendResponse({ success: false, error: error.message } as Response);
-          });
-
-        return true; // 비동기 응답
-      } else if (message.action === "fetchIframeContent") {
-        const url = message.url as string;
-        if (!url) {
-          console.error("URL이 필요합니다.");
-          sendResponse({ success: false, error: "URL이 필요합니다." } as Response);
-          return true;
+        // favicon 업데이트 (없는 경우에만)
+        if (!group.favicon && newItem.meta?.favicon) {
+          group.favicon = newItem.meta.favicon;
         }
 
-        fetch(url)
-          .then((response) => {
-            if (!response.ok) {
-              throw new Error(`HTTP 오류: ${response.status}`);
-            }
-            return response.text();
-          })
-          .then((html) => {
-            sendResponse({ success: true, html } as Response);
-          })
-          .catch((error) => {
-            console.error("iframe 컨텐츠 가져오기 오류:", error);
-            sendResponse({ success: false, error: error.message } as Response);
-          });
+        // 업데이트된 그룹 저장
+        updatedGroups[groupIndex] = group;
+        await chrome.storage.local.set({ urlGroups: updatedGroups });
+      } else {
+        // 새 그룹 생성
+        const newGroup: UrlGroup = {
+          url: newItem.pageUrl,
+          title: newItem.pageTitle,
+          favicon: newItem.meta?.favicon,
+          timestamp: newItem.timestamp,
+          items: [newItem],
+          // 요약 및 문제 정보는 기본값으로
+          summaryId: undefined,
+          summaryContent: undefined,
+          summaryType: undefined,
+          problemId: undefined,
+        };
 
-        return true; // 비동기 응답
+        await chrome.storage.local.set({ urlGroups: [...currentGroups, newGroup] });
       }
-    } catch (error: any) {
-      console.error("메시지 처리 중 오류:", error);
-      sendResponse({ success: false, error: error.message } as Response);
-      return false;
-    }
 
+      resolve();
+    } catch (error) {
+      console.error("URL 그룹 업데이트 오류:", error);
+      reject(error);
+    }
+  });
+}
+
+// 콘텐츠 스크립트에서 메시지 받기
+chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) => {
+  if (!isContextValid) {
+    console.error("확장 프로그램 컨텍스트가 더 이상 유효하지 않습니다.");
+    sendResponse({ success: false, error: "Extension context invalidated" });
     return false;
   }
-);
+
+  (async () => {
+    try {
+      // 콘텐츠 캡처 메시지 처리
+      if (message.action === "contentCaptured") {
+        console.log("콘텐츠 캡처됨:", message.type);
+
+        const state = await getCurrentState();
+        if (!state.isCapturing) {
+          sendResponse({
+            success: false,
+            status: "disabled",
+            error: "캡처가 비활성화되어 있습니다.",
+          });
+          return;
+        }
+
+        const pageUrl = sender.tab?.url || "";
+        const pageTitle = sender.tab?.title || "";
+
+        if (!pageUrl) {
+          sendResponse({
+            success: false,
+            error: "탭 URL을 확인할 수 없습니다.",
+          });
+          return;
+        }
+
+        const result = await chrome.storage.local.get(["savedItems"]);
+        const savedItems = (result.savedItems || []) as CapturedItem[];
+
+        // 새 아이템 생성
+        const newItem: CapturedItem = {
+          id: Date.now(),
+          type: message.type || "text", // 기본값 제공
+          content: message.content || "", // 기본값 제공
+          pageUrl,
+          pageTitle,
+          timestamp: new Date().toISOString(),
+          meta: message.meta || {},
+        };
+
+        // DOM 경로 비교를 통한 중복 확인 및 병합
+        if (message.type === "text" && typeof message.content === "string") {
+          const existingItems = savedItems.filter(
+            (item) => item.pageUrl === pageUrl && item.type === "text"
+          );
+
+          if (existingItems.length > 0) {
+            // 내용이 완전히 동일한 아이템 확인
+            const exactDuplicate = existingItems.find(
+              (item) => typeof item.content === "string" && item.content === message.content
+            );
+
+            if (exactDuplicate) {
+              console.log("정확히 동일한 콘텐츠 발견, 중복 저장 방지");
+              sendResponse({
+                success: true,
+                status: "skipped_duplicate",
+                message: "이미 저장된 동일한 콘텐츠입니다.",
+              });
+              return;
+            }
+
+            // DOM 경로 기반 병합 가능한 아이템 확인
+            const itemsWithDomPath = existingItems.filter(
+              (item) => item.meta?.domPath && typeof item.content === "string"
+            );
+
+            if (itemsWithDomPath.length > 0 && message.meta?.domPath) {
+              for (const existingItem of itemsWithDomPath) {
+                if (existingItem.meta?.domPath) {
+                  // html 콘텐츠 비교 (diff 계산)
+                  const existingVNodes = parseHtmlToVNodes(existingItem.content as string);
+                  const newVNodes = parseHtmlToVNodes(message.content as string);
+                  const diff = dd.diff(existingVNodes as any, newVNodes as any);
+
+                  // 병합 전략 결정
+                  const mergeAction = determineMergeStrategy(
+                    message.meta.domPath,
+                    existingItem.meta.domPath,
+                    message.content.length,
+                    (existingItem.content as string).length,
+                    diff
+                  );
+
+                  if (mergeAction !== "none") {
+                    console.log(
+                      `병합 전략 결정: ${mergeAction}, ID: ${existingItem.id}`,
+                      `기존 경로: ${existingItem.meta.domPath}`,
+                      `새 경로: ${message.meta.domPath}`
+                    );
+
+                    // 아이템 병합
+                    const mergedItem = mergeContent(newItem, existingItem, mergeAction);
+
+                    // 저장된 아이템 업데이트
+                    const updatedItems = savedItems.map((item) =>
+                      item.id === existingItem.id ? mergedItem : item
+                    );
+
+                    await chrome.storage.local.set({ savedItems: updatedItems });
+
+                    // URL 그룹 업데이트
+                    await updateUrlGroups(mergedItem);
+
+                    // 탭에 알림 전송
+                    try {
+                      if (sender.tab?.id) {
+                        chrome.tabs.sendMessage(sender.tab.id, {
+                          action: "savingComplete",
+                          item: mergedItem,
+                        });
+                      }
+                    } catch (notificationError) {
+                      console.error("알림 전송 오류:", notificationError);
+                    }
+
+                    sendResponse({
+                      success: true,
+                      status: "item_updated",
+                      message: "기존 항목에 내용이 병합되었습니다.",
+                    });
+                    return;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // 새 아이템 저장
+        await chrome.storage.local.set({
+          savedItems: [...savedItems, newItem],
+        });
+
+        // URL 그룹 업데이트
+        await updateUrlGroups(newItem);
+
+        // 탭에 알림 전송 (캡처 완료)
+        try {
+          if (sender.tab?.id) {
+            chrome.tabs.sendMessage(sender.tab.id, {
+              action: "savingComplete",
+              item: newItem,
+            });
+          }
+        } catch (notificationError) {
+          console.error("알림 전송 오류:", notificationError);
+        }
+
+        sendResponse({ success: true, status: "ok" });
+        return;
+      }
+
+      // 콘텐츠 스크립트 준비 상태 메시지
+      if (message.action === "contentScriptReady") {
+        console.log("콘텐츠 스크립트 준비됨");
+        sendResponse({ success: true, received: true });
+        return;
+      }
+    } catch (error: any) {
+      console.error("오류:", error.message || error);
+      sendResponse({
+        success: false,
+        error: error.message || "알 수 없는 오류가 발생했습니다.",
+      });
+    }
+  })();
+
+  return true; // 비동기 응답을 위해 true 반환
+});
 
 // 확장 프로그램 설치/업데이트 시 실행
 chrome.runtime.onInstalled.addListener((details) => {

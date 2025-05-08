@@ -4,7 +4,7 @@ import ArrowRight from "../svgs/arrow-right.svg";
 import CapturedItemCard from "./components/CapturedItemCard";
 import CreateSummaryModal from "./components/CreateSummaryModal";
 import CreateProblemModal, { ProblemCreationData } from "./components/CreateProblemModal";
-import { CapturedItem, ItemType } from "../types";
+import { CapturedItem, ItemType, UrlGroup } from "../types";
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
@@ -66,6 +66,7 @@ function compareDomPaths(pathA: string | undefined, pathB: string | undefined): 
 export default function History() {
   const { isAuthenticated, authLoading, login, authToken } = useAuth();
   const [savedItems, setSavedItems] = useState<CapturedItem[]>([]);
+  const [urlGroups, setUrlGroups] = useState<UrlGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<ItemType | "all">("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -91,78 +92,87 @@ export default function History() {
   // Instantiate TurndownService and apply plugins
   const turndownService = customTurndown();
 
+  // 아이템을 URL 그룹으로 변환하는 함수
+  const organizeItemsIntoUrlGroups = (items: CapturedItem[]): UrlGroup[] => {
+    // 그룹화 로직
+    const groupsByUrl: { [url: string]: UrlGroup } = {};
+
+    items.forEach((item) => {
+      if (!groupsByUrl[item.pageUrl]) {
+        groupsByUrl[item.pageUrl] = {
+          url: item.pageUrl,
+          title: item.pageTitle,
+          favicon: item.meta?.favicon,
+          timestamp: item.timestamp,
+          items: [],
+          summaryId: undefined,
+          summaryContent: undefined,
+          summaryType: undefined,
+          problemId: undefined,
+        };
+      }
+
+      // 그룹의 timestamp 업데이트 (가장 최근 날짜로)
+      const itemTime = new Date(item.timestamp).getTime();
+      const groupTime = new Date(groupsByUrl[item.pageUrl].timestamp).getTime();
+      if (itemTime > groupTime) {
+        groupsByUrl[item.pageUrl].timestamp = item.timestamp;
+      }
+
+      // 아이템 추가
+      groupsByUrl[item.pageUrl].items.push({ ...item });
+    });
+
+    // DOM 경로로 각 그룹 내 아이템 정렬
+    Object.values(groupsByUrl).forEach((group) => {
+      group.items.sort((a, b) => {
+        const pathA = a.meta?.domPath;
+        const pathB = b.meta?.domPath;
+        return compareDomPaths(pathA, pathB);
+      });
+    });
+
+    // 최신 업데이트 순으로 그룹 정렬
+    return Object.values(groupsByUrl).sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime();
+      const timeB = new Date(b.timestamp).getTime();
+      return timeB - timeA; // 최신순
+    });
+  };
+
   // 저장된 아이템 불러오기 함수 분리 (재사용 위해)
   const loadItems = useCallback(async () => {
     if (!isAuthenticated) {
       setSavedItems([]);
+      setUrlGroups([]);
       setLoading(false);
       return;
     }
 
     setLoading(true);
     try {
-      const result = await chrome.storage.local.get(["savedItems"]);
-      const items = (result.savedItems || []) as CapturedItem[];
+      const result = await chrome.storage.local.get(["savedItems", "urlGroups"]);
 
-      // Group items by URL first
-      const itemsByUrl: { [url: string]: CapturedItem[] } = {};
-      items.forEach((item) => {
-        if (!itemsByUrl[item.pageUrl]) {
-          itemsByUrl[item.pageUrl] = [];
-        }
-        itemsByUrl[item.pageUrl].push(item);
-      });
+      // URL 그룹 데이터 확인
+      if (result.urlGroups) {
+        // 이미 새 형식으로 저장된 데이터가 있는 경우
+        setUrlGroups(result.urlGroups as UrlGroup[]);
+        setSavedItems((result.savedItems || []) as CapturedItem[]); // 호환성 유지
+      } else {
+        // 이전 형식의 데이터만 있는 경우, 변환 필요
+        const items = (result.savedItems || []) as CapturedItem[];
+        const groups = organizeItemsIntoUrlGroups(items);
 
-      // Sort items within each group by DOM path, then combine
-      let sortedItems: CapturedItem[] = [];
-      Object.values(itemsByUrl).forEach((group) => {
-        const sortedGroup = group.sort((a, b) => {
-          const pathA = a.meta?.domPath;
-          const pathB = b.meta?.domPath;
-          if (!pathA && !pathB) return 0;
-          if (!pathA) return -1;
-          if (!pathB) return 1;
-          return compareDomPaths(pathA, pathB);
-        });
-        sortedItems = sortedItems.concat(sortedGroup);
-      });
+        setUrlGroups(groups);
+        setSavedItems(items); // 호환성 유지
 
-      // Now sort the groups themselves by the timestamp of the *first* item in each sorted group (latest group first)
-      // Or keep a fixed order based on URL if preferred. Let's sort groups by latest timestamp for now.
-      const finalGroupedItems: {
-        [url: string]: { title: string; items: CapturedItem[] };
-      } = {};
-      sortedItems.forEach((item) => {
-        const url = item.pageUrl;
-        if (!finalGroupedItems[url]) {
-          finalGroupedItems[url] = {
-            title: item.pageTitle || url,
-            items: [],
-          };
-        }
-        finalGroupedItems[url].items.push(item);
-      });
-
-      // Sort the keys (URLs) based on the timestamp of the first item in each group (latest first)
-      const sortedUrls = Object.keys(finalGroupedItems).sort((urlA, urlB) => {
-        const firstItemA = finalGroupedItems[urlA].items[0];
-        const firstItemB = finalGroupedItems[urlB].items[0];
-        const timeA = firstItemA ? new Date(firstItemA.timestamp).getTime() : 0;
-        const timeB = firstItemB ? new Date(firstItemB.timestamp).getTime() : 0;
-        // Handle invalid dates
-        if (isNaN(timeA) && isNaN(timeB)) return 0;
-        if (isNaN(timeA)) return 1;
-        if (isNaN(timeB)) return -1;
-        return timeB - timeA; // Descending order (latest group first)
-      });
-
-      // Reconstruct sorted savedItems array based on sorted URL groups
-      const finalSortedItems = sortedUrls.flatMap((url) => finalGroupedItems[url].items);
-
-      setSavedItems(finalSortedItems);
+        // 변환된 데이터 저장
+        await chrome.storage.local.set({ urlGroups: groups });
+      }
     } catch (error) {
       console.error("아이템 로드/정렬 오류:", error);
-      setSavedItems([]); // 오류 시 빈 배열로 설정
+      setSavedItems([]);
+      setUrlGroups([]);
     } finally {
       setLoading(false);
     }
@@ -181,9 +191,9 @@ export default function History() {
       changes: { [key: string]: chrome.storage.StorageChange },
       areaName: string
     ) => {
-      if (areaName === "local" && changes.savedItems && isAuthenticated) {
-        console.log("savedItems 변경 감지 (로그인 상태), 데이터 리로드");
-        loadItems(); // 변경된 데이터 다시 로드
+      if (areaName === "local" && (changes.savedItems || changes.urlGroups) && isAuthenticated) {
+        console.log("저장 데이터 변경 감지 (로그인 상태), 데이터 리로드");
+        loadItems();
       }
     };
 
@@ -194,24 +204,23 @@ export default function History() {
     };
   }, [isAuthenticated, loadItems]);
 
-  // 아이템 삭제 처리
-  const handleDelete = async (itemId: number) => {
-    try {
-      const currentItemsResult = await chrome.storage.local.get(["savedItems"]);
-      const currentItems = (currentItemsResult.savedItems || []) as CapturedItem[];
-      const updatedItems = currentItems.filter((item) => item.id !== itemId);
-      await chrome.storage.local.set({ savedItems: updatedItems });
-    } catch (error) {
-      console.error("아이템 삭제 오류:", error);
-      alert("아이템 삭제 중 오류가 발생했습니다.");
-    }
-  };
-
   // 모든 아이템 삭제 처리
   const handleDeleteAll = async () => {
     if (window.confirm("모든 캡처 아이템을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) {
       try {
-        await chrome.storage.local.set({ savedItems: [] });
+        // urlGroups는 유지하되 각 그룹의 items 배열만 비우기
+        const currentData = await chrome.storage.local.get(["urlGroups"]);
+        const currentGroups = (currentData.urlGroups || []) as UrlGroup[];
+
+        const preservedGroups = currentGroups.map((group) => ({
+          ...group,
+          items: [], // 아이템은 비우고 그룹 정보는 유지
+        }));
+
+        await chrome.storage.local.set({
+          savedItems: [],
+          urlGroups: preservedGroups,
+        });
       } catch (error) {
         console.error("모든 아이템 삭제 오류:", error);
         alert("모든 아이템 삭제 중 오류가 발생했습니다.");
@@ -221,23 +230,82 @@ export default function History() {
 
   // URL별 아이템 삭제 처리
   const handleDeleteUrlGroup = async (pageUrl: string) => {
-    const groupTitle = groupedItemsForDisplay[pageUrl]?.title || pageUrl;
+    const group = urlGroups.find((g) => g.url === pageUrl);
+    if (!group) return;
+
     if (
       window.confirm(
-        `'${groupTitle}' 그룹의 모든 내용을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`
+        `'${group.title}' 그룹의 모든 내용을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`
       )
     ) {
       try {
-        const currentItemsResult = await chrome.storage.local.get(["savedItems"]);
-        const itemsToKeep = (currentItemsResult.savedItems || []).filter(
-          (item: CapturedItem) => item.pageUrl !== pageUrl
-        );
-        await chrome.storage.local.set({ savedItems: itemsToKeep });
+        // 현재 데이터 가져오기
+        const currentData = await chrome.storage.local.get(["savedItems", "urlGroups"]);
+        const currentItems = (currentData.savedItems || []) as CapturedItem[];
+        const currentGroups = (currentData.urlGroups || []) as UrlGroup[];
+
+        // 아이템 필터링
+        const updatedItems = currentItems.filter((item) => item.pageUrl !== pageUrl);
+
+        // 그룹 업데이트 - 요약과 문제 정보는 유지하고 아이템만 비우기
+        const updatedGroups = currentGroups.map((group) => {
+          if (group.url === pageUrl) {
+            return {
+              ...group,
+              items: [], // 아이템은 비우고 그룹 정보는 유지
+            };
+          }
+          return group;
+        });
+
+        // 저장
+        await chrome.storage.local.set({
+          savedItems: updatedItems,
+          urlGroups: updatedGroups,
+        });
+
         setExpandedGroups(""); // 삭제 후 그룹 닫기
       } catch (error) {
         console.error("그룹 삭제 오류:", error);
         alert("그룹 삭제 중 오류가 발생했습니다.");
       }
+    }
+  };
+
+  // 아이템 삭제 처리
+  const handleDelete = async (itemId: number) => {
+    try {
+      // 현재 데이터 가져오기
+      const currentData = await chrome.storage.local.get(["savedItems", "urlGroups"]);
+      const currentItems = (currentData.savedItems || []) as CapturedItem[];
+      const currentGroups = (currentData.urlGroups || []) as UrlGroup[];
+
+      // 삭제할 아이템 찾기
+      const itemToDelete = currentItems.find((item) => item.id === itemId);
+      if (!itemToDelete) return;
+
+      // 아이템 삭제
+      const updatedItems = currentItems.filter((item) => item.id !== itemId);
+
+      // 그룹 데이터 업데이트 - 그룹 정보 유지하면서 해당 아이템만 제거
+      const updatedGroups = currentGroups.map((group) => {
+        if (group.url === itemToDelete.pageUrl) {
+          return {
+            ...group,
+            items: group.items.filter((item) => item.id !== itemId),
+          };
+        }
+        return group;
+      });
+
+      // 저장
+      await chrome.storage.local.set({
+        savedItems: updatedItems,
+        urlGroups: updatedGroups,
+      });
+    } catch (error) {
+      console.error("아이템 삭제 오류:", error);
+      alert("아이템 삭제 중 오류가 발생했습니다.");
     }
   };
 
@@ -302,74 +370,72 @@ export default function History() {
   // 아이템 수정 처리
   const handleEdit = async (item: CapturedItem, newContent: string) => {
     try {
-      const currentItemsResult = await chrome.storage.local.get(["savedItems"]);
-      const currentItems = (currentItemsResult.savedItems || []) as CapturedItem[];
+      // 현재 데이터 가져오기
+      const currentData = await chrome.storage.local.get(["savedItems", "urlGroups"]);
+      const currentItems = (currentData.savedItems || []) as CapturedItem[];
+      const currentGroups = (currentData.urlGroups || []) as UrlGroup[];
+
+      // 아이템 수정
       const updatedItems = currentItems.map((savedItem) =>
         savedItem.id === item.id ? { ...savedItem, content: newContent } : savedItem
       );
-      await chrome.storage.local.set({ savedItems: updatedItems });
+
+      // 그룹 내 아이템 수정
+      const updatedGroups = currentGroups.map((group) => {
+        const updatedGroupItems = group.items.map((groupItem) =>
+          groupItem.id === item.id ? { ...groupItem, content: newContent } : groupItem
+        );
+
+        return { ...group, items: updatedGroupItems };
+      });
+
+      // 저장
+      await chrome.storage.local.set({
+        savedItems: updatedItems,
+        urlGroups: updatedGroups,
+      });
     } catch (error) {
       console.error("아이템 수정 오류:", error);
       alert("아이템 수정 중 오류가 발생했습니다.");
     }
   };
 
-  // 필터링된 아이템 (이제 savedItems는 이미 정렬된 상태)
-  const filteredItems = savedItems.filter((item) => {
-    // 타입 필터
-    if (filter !== "all" && item.type !== filter) {
-      return false;
-    }
-
-    // 검색어 필터
+  // 필터링된 URL 그룹
+  const filteredGroups = urlGroups.filter((group) => {
+    // 검색어 필터링
     if (searchTerm.trim() !== "") {
       const searchText = searchTerm.toLowerCase();
 
-      // 텍스트 타입일 경우 내용 검색
-      if (item.type === "text" && typeof item.content === "string") {
-        return (
-          item.content.toLowerCase().includes(searchText) ||
-          item.pageTitle.toLowerCase().includes(searchText) ||
-          item.pageUrl.toLowerCase().includes(searchText)
-        );
+      // 그룹 제목, URL 검색
+      if (
+        group.title.toLowerCase().includes(searchText) ||
+        group.url.toLowerCase().includes(searchText)
+      ) {
+        return true;
       }
 
-      // 이미지 타입일 경우 페이지 정보만 검색
-      return (
-        item.pageTitle.toLowerCase().includes(searchText) ||
-        item.pageUrl.toLowerCase().includes(searchText)
-      );
+      // 그룹 내 아이템 콘텐츠 검색
+      return group.items.some((item) => {
+        if (item.type === "text" && typeof item.content === "string") {
+          return item.content.toLowerCase().includes(searchText);
+        }
+        return false;
+      });
+    }
+
+    // 타입 필터링
+    if (filter !== "all") {
+      return group.items.some((item) => item.type === filter);
     }
 
     return true;
   });
 
-  // url별로 아이템 그룹화 (for display - items within groups are already sorted)
-  const groupedItemsForDisplay: {
-    [url: string]: { title: string; items: CapturedItem[] };
-  } = {};
-  filteredItems.forEach((item) => {
-    const url = item.pageUrl;
-    if (!groupedItemsForDisplay[url]) {
-      groupedItemsForDisplay[url] = {
-        title: item.pageTitle || url,
-        items: [],
-      };
-    }
-    groupedItemsForDisplay[url].items.push(item);
-  });
-
-  // Get sorted URLs for rendering based on the original sorting (latest group first)
-  // We need to respect the order derived from sorting by the first item's timestamp
-  const displayOrderUrls = Object.keys(groupedItemsForDisplay).sort((urlA, urlB) => {
-    const firstItemTimestamp = (url: string): number => {
-      const firstItem = savedItems.find((item) => item.pageUrl === url);
-      if (!firstItem) return 0;
-      const time = new Date(firstItem.timestamp).getTime();
-      return isNaN(time) ? 0 : time;
-    };
-    return firstItemTimestamp(urlB) - firstItemTimestamp(urlA); // Descending
-  });
+  // 타입 필터링된 아이템 (그룹 내)
+  const getFilteredItemsInGroup = (group: UrlGroup) => {
+    if (filter === "all") return group.items;
+    return group.items.filter((item) => item.type === filter);
+  };
 
   // 그룹 접기/펼치기 토글 함수
   const toggleGroup = (url: string) => {
@@ -377,28 +443,21 @@ export default function History() {
   };
 
   // 요약 기능 처리 (모달 열기)
-  const handleOpenSummaryModal = (url: string, title: string) => {
+  const handleOpenSummaryModal = (group: UrlGroup) => {
     if (!authToken) {
       alert("인증 토큰이 없습니다. 다시 로그인해주세요.");
       return;
     }
 
-    const itemsInGroup = groupedItemsForDisplay[url]?.items;
-    if (!itemsInGroup || itemsInGroup.length === 0) {
-      console.warn("요약할 아이템이 없는 그룹입니다:", url);
-      alert("요약할 항목이 없습니다.");
-      return;
-    }
-
     // 이미 요약이 있는 경우 바로 이동
-    if (itemsInGroup[0].summaryId) {
-      console.log("Navigating to summaryId:", itemsInGroup[0].summaryId);
-      navigate(`/summary/${itemsInGroup[0].summaryId}`);
+    if (group.summaryId) {
+      console.log("Navigating to summaryId:", group.summaryId);
+      navigate(`/summary/${group.summaryId}`);
       return;
     }
 
-    setSelectedItemGroupForSummary(itemsInGroup);
-    setSelectedGroupInfo({ url, title });
+    setSelectedItemGroupForSummary(group.items);
+    setSelectedGroupInfo({ url: group.url, title: group.title });
     setIsSummaryModalOpen(true);
   };
 
@@ -409,85 +468,116 @@ export default function History() {
     summaryType: "markdown" | "ai",
     summaryId: string
   ) => {
-    if (selectedItems.length === 0) {
+    if (selectedItems.length === 0 || !selectedGroupInfo) {
       setIsSummaryModalOpen(false);
       return;
     }
 
-    const pageUrl = selectedItems[0].pageUrl;
+    const pageUrl = selectedGroupInfo.url;
     setSummarizingUrls((prev) => ({ ...prev, [pageUrl]: true }));
     setIsSummaryModalOpen(false);
 
     try {
-      const currentItemsResult = await chrome.storage.local.get(["savedItems"]);
-      const currentItems = (currentItemsResult.savedItems || []) as CapturedItem[];
+      // 현재 데이터 가져오기
+      const currentData = await chrome.storage.local.get(["urlGroups"]);
+      const currentGroups = (currentData.urlGroups || []) as UrlGroup[];
 
-      // 선택된 항목들에만 summaryId 할당
-      const updatedItems = currentItems.map((item) =>
-        selectedItems.some((selected) => selected.id === item.id)
-          ? { ...item, summaryId, summaryContent, summaryType }
-          : item
-      );
+      // 그룹 데이터 업데이트
+      const updatedGroups = currentGroups.map((group) => {
+        if (group.url === pageUrl) {
+          // 현재 URL 그룹 업데이트
+          return {
+            ...group,
+            summaryId,
+            summaryContent,
+            summaryType,
+          };
+        }
+        return group;
+      });
 
-      await chrome.storage.local.set({ savedItems: updatedItems });
+      // 저장 - 이제 개별 아이템에는 summary 정보를 저장하지 않음
+      await chrome.storage.local.set({
+        urlGroups: updatedGroups,
+      });
     } catch (error) {
       console.error("요약 생성 오류:", error);
       alert("요약 생성 중 오류가 발생했습니다.");
     } finally {
       setSummarizingUrls((prev) => ({ ...prev, [pageUrl]: false }));
       setSelectedItemGroupForSummary([]);
+      setSelectedGroupInfo(null);
     }
   };
 
   // 문제 생성 기능 처리
-  const handleCreateProblem = async (item: CapturedItem) => {
-    if (item.problemId) {
-      navigate(`/problem/${item.problemId}`);
+  const handleCreateProblem = async (group: UrlGroup) => {
+    if (group.problemId) {
+      navigate(`/problem/${group.problemId}`);
       return;
     }
 
-    if (!item.summaryId) {
+    if (!group.summaryId) {
       alert("먼저 요약을 생성해주세요.");
       return;
     }
 
-    setSelectedItemForProblem(item);
+    // 대표 아이템으로 첫 번째 아이템 사용 - 단순히 UI를 위한 것
+    setSelectedItemForProblem(group.items[0]);
+    // 선택된 그룹 정보 저장
+    setSelectedGroupInfo({ url: group.url, title: group.title });
     setIsProblemModalOpen(true);
   };
 
   const handleProblemModalSubmit = async (data: ProblemCreationData) => {
     setIsProblemModalOpen(false);
-    setSelectedItemForProblem(null);
-    if (!selectedItemForProblem || !authToken) {
-      alert("인증 토큰이 없거나 선택된 아이템이 없습니다.");
+
+    if (!selectedItemForProblem || !authToken || !selectedGroupInfo) {
+      alert("인증 토큰이 없거나 선택된 그룹이 없습니다.");
+      setSelectedItemForProblem(null);
       return;
     }
+
     const pageUrl = selectedItemForProblem.pageUrl;
     setCreatingProblemsUrls((prev) => ({ ...prev, [pageUrl]: true }));
+
     try {
-      console.log(
-        "문제 생성 요청:",
-        selectedItemForProblem.summaryId,
-        "데이터:",
-        data,
-        "토큰:",
-        authToken ? "있음" : "없음"
-      );
+      // 현재 URL 그룹 찾기
+      const currentData = await chrome.storage.local.get(["urlGroups"]);
+      const currentGroups = (currentData.urlGroups || []) as UrlGroup[];
+      const currentGroup = currentGroups.find((g) => g.url === pageUrl);
+
+      if (!currentGroup || !currentGroup.summaryId) {
+        alert("요약 정보를 찾을 수 없습니다. 먼저 요약을 생성해주세요.");
+        setCreatingProblemsUrls((prev) => ({ ...prev, [pageUrl]: false }));
+        setSelectedItemForProblem(null);
+        return;
+      }
 
       // api 인스턴스 직접 사용
-      const { data: result } = await api.post(`/quiz/${selectedItemForProblem.summaryId}`, {
+      const { data: result } = await api.post(`/quiz/${currentGroup.summaryId}`, {
         quizCount: data.quizCount,
         quizTypes: data.quizTypes,
       });
-      console.log("result: ", result);
+
       if (result.success) {
-        const problemId = selectedItemForProblem.summaryId;
-        const currentItemsResult = await chrome.storage.local.get(["savedItems"]);
-        const currentItems = (currentItemsResult.savedItems || []) as CapturedItem[];
-        const updatedItems = currentItems.map((savedItem) =>
-          savedItem.pageUrl === pageUrl ? { ...savedItem, problemId } : savedItem
-        );
-        await chrome.storage.local.set({ savedItems: updatedItems });
+        const problemId = currentGroup.summaryId;
+
+        // 그룹 업데이트
+        const updatedGroups = currentGroups.map((group) => {
+          if (group.url === pageUrl) {
+            return {
+              ...group,
+              problemId,
+            };
+          }
+          return group;
+        });
+
+        // 저장
+        await chrome.storage.local.set({
+          urlGroups: updatedGroups,
+        });
       } else if (result.errorCode === "QUIZ400") {
         alert(
           `${selectedItemForProblem.pageTitle} \n문제 생성 중 오류가 발생했습니다. \nMemozy는 현재 IT&개발자에 관련된 내용만 취급하고 있습니다.`
@@ -500,6 +590,7 @@ export default function History() {
       alert("문제 생성 중 오류가 발생했습니다.");
     } finally {
       setCreatingProblemsUrls((prev) => ({ ...prev, [pageUrl]: false }));
+      setSelectedItemForProblem(null);
     }
   };
 
@@ -560,7 +651,7 @@ export default function History() {
             <h1 className="flex text-3xl font-bold text-level6 m-0">Memozy</h1>
           </div>
           <div className="flex gap-2.5">
-            {savedItems.length > 0 && (
+            {urlGroups.length > 0 && (
               <button
                 className="bg-warning text-white border-0 py-2 px-4 rounded hover:bg-error transition-colors font-medium text-sm"
                 onClick={handleDeleteAll}
@@ -573,7 +664,7 @@ export default function History() {
         </div>
 
         {/* 필터 컨트롤 */}
-        {savedItems.length > 0 && (
+        {urlGroups.length > 0 && (
           <div className="flex w-full gap-2.5 mt-4 mb-1 bg-level1 py-1 z-10">
             <select
               className="w-25 flex-shrink-0 py-2 px-3 border border-light-gray rounded bg-white text-sm"
@@ -601,32 +692,31 @@ export default function History() {
       </header>
 
       <div className="flex-1 overflow-y-auto">
-        {displayOrderUrls.map((url) => {
-          const group = groupedItemsForDisplay[url];
-          if (!group || !group.items || group.items.length === 0) return null;
-          const { title: groupTitle, items } = group;
+        {filteredGroups.map((group) => {
+          const filteredItems = getFilteredItemsInGroup(group);
+          if (filteredItems.length === 0) return null;
 
           return (
             <div
-              key={url}
+              key={group.url}
               className="group-container min-h-19 max-h-[calc(90vh-160px)] mb-4 bg-white rounded-lg shadow-sm border border-light-gray overflow-auto"
             >
               <div
                 className="sticky top-0 z-20 flex justify-between items-center p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
-                onClick={() => toggleGroup(url)}
+                onClick={() => toggleGroup(group.url)}
               >
                 <div className="flex min-w-0 mr-2">
                   <h3
                     className="m-0 text-base font-semibold text-black flex items-center"
-                    title={groupTitle}
+                    title={group.title}
                   >
                     <span className="mr-1">
-                      {expandedGroups === url ? <ArrowDown /> : <ArrowRight />}
+                      {expandedGroups === group.url ? <ArrowDown /> : <ArrowRight />}
                     </span>
                     {/* favicon 표시 (있을 때만) */}
-                    {items[0]?.meta?.favicon && (
+                    {group.favicon && (
                       <img
-                        src={items[0].meta.favicon}
+                        src={group.favicon}
                         alt="favicon"
                         className="w-5 h-5 mr-2 rounded"
                         style={{ background: "#fff", border: "1px solid #eee" }}
@@ -635,27 +725,27 @@ export default function History() {
                         }}
                       />
                     )}
-                    <span className="line-clamp-1">{groupTitle}</span>
+                    <span className="line-clamp-1">{group.title}</span>
                     <span className="ml-2 text-sm font-normal text-gray flex-shrink-0">
-                      ({items.length})
+                      ({filteredItems.length})
                     </span>
                   </h3>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button
                     className={`flex flex-col text-xs w-[35px] h-[50px] px-1 rounded border transition-all flex items-center justify-center gap-1 ${
-                      items[0].summaryId
+                      group.summaryId
                         ? "bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
                         : "bg-white border-gray-200 text-gray-600 hover:bg-gray-100"
-                    } ${summarizingUrls[url] ? "opacity-50 cursor-wait" : "cursor-pointer"}`}
+                    } ${summarizingUrls[group.url] ? "opacity-50 cursor-wait" : "cursor-pointer"}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (!summarizingUrls[url]) handleOpenSummaryModal(url, groupTitle);
+                      if (!summarizingUrls[group.url]) handleOpenSummaryModal(group);
                     }}
-                    disabled={summarizingUrls[url]}
-                    title={items[0].summaryId ? "요약 보기" : "요약 생성"}
+                    disabled={summarizingUrls[group.url]}
+                    title={group.summaryId ? "요약 보기" : "요약 생성"}
                   >
-                    {summarizingUrls[url] ? (
+                    {summarizingUrls[group.url] ? (
                       <span className="text-xs">요약중...</span>
                     ) : (
                       <>
@@ -666,26 +756,26 @@ export default function History() {
                   </button>
                   <button
                     className={`flex flex-col text-xs w-[35px] h-[50px] px-1 rounded border transition-all flex items-center justify-center gap-1 ${
-                      items[0].problemId
+                      group.problemId
                         ? "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 cursor-pointer"
-                        : items[0].summaryId && !creatingProblemsUrls[url]
+                        : group.summaryId && !creatingProblemsUrls[group.url]
                           ? "bg-white border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer"
                           : "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
-                    } ${creatingProblemsUrls[url] ? "opacity-50 cursor-wait" : ""}`}
+                    } ${creatingProblemsUrls[group.url] ? "opacity-50 cursor-wait" : ""}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (!creatingProblemsUrls[url]) handleCreateProblem(items[0]);
+                      if (!creatingProblemsUrls[group.url]) handleCreateProblem(group);
                     }}
-                    disabled={!items[0]?.summaryId || creatingProblemsUrls[url]}
+                    disabled={!group.summaryId || creatingProblemsUrls[group.url]}
                     title={
-                      items[0].problemId
+                      group.problemId
                         ? "문제 보기"
-                        : !items[0].summaryId
+                        : !group.summaryId
                           ? "요약 후 문제 생성 가능"
                           : "문제 만들기"
                     }
                   >
-                    {creatingProblemsUrls[url] ? (
+                    {creatingProblemsUrls[group.url] ? (
                       <span className="text-xs">생성중...</span>
                     ) : (
                       <>
@@ -698,7 +788,7 @@ export default function History() {
                     className="flex flex-col text-xs w-[35px] h-[50px] px-1 rounded border bg-white border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer transition-all flex items-center justify-center gap-1"
                     onClick={(e) => {
                       e.stopPropagation();
-                      window.open(items[0].pageUrl, "_blank");
+                      window.open(group.url, "_blank");
                     }}
                     title="원본 페이지 새 탭으로 열기"
                   >
@@ -709,7 +799,7 @@ export default function History() {
                     className="flex flex-col text-xs w-[35px] h-[50px] px-1 rounded border bg-red-50 border-red-200 text-red-600 hover:bg-red-100 cursor-pointer transition-all flex items-center justify-center gap-1"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDeleteUrlGroup(url);
+                      handleDeleteUrlGroup(group.url);
                     }}
                     title="이 그룹의 모든 항목 삭제"
                   >
@@ -719,10 +809,10 @@ export default function History() {
                 </div>
               </div>
 
-              {expandedGroups === url && (
+              {expandedGroups === group.url && (
                 <div className="border-t border-light-gray">
                   <div className="p-3 pt-0 space-y-3 bg-gray-50/50">
-                    {items.map((item) => (
+                    {filteredItems.map((item) => (
                       <CapturedItemCard
                         key={item.id}
                         item={item}

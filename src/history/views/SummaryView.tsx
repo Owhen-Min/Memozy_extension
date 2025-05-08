@@ -1,55 +1,38 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { CapturedItem } from "../../types";
+import { CapturedItem, UrlGroup } from "../../types";
 import CustomReactMarkdown from "../../lib/react-markdown/CustomReactMarkdown";
 
 export default function SummaryView() {
   const { summaryId } = useParams();
   const navigate = useNavigate();
-  const [summary, setSummary] = useState<CapturedItem | null>(null);
+  const [summary, setSummary] = useState<UrlGroup | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadSummary = async () => {
       try {
-        const items = await chrome.storage.local.get(["savedItems"]);
         if (summaryId) {
           const numericSummaryId = parseInt(summaryId, 10);
           if (!isNaN(numericSummaryId)) {
-            const foundSummary = items.savedItems.find(
-              (item: CapturedItem) => item.summaryId === numericSummaryId
+            // URL 그룹에서 요약 정보 찾기
+            const result = await chrome.storage.local.get(["urlGroups"]);
+            const urlGroups = result.urlGroups || [];
+
+            const foundSummaryGroup = urlGroups.find(
+              (group: UrlGroup) => group.summaryId === numericSummaryId
             );
-            if (foundSummary) {
-              setSummary(foundSummary);
+
+            if (foundSummaryGroup) {
+              setSummary(foundSummaryGroup);
             } else {
               // 요약을 찾을 수 없는 경우
               alert("요약을 찾을 수 없습니다.");
-              // 존재하지 않는 summaryId 삭제
-              await chrome.storage.local.set({
-                savedItems: items.savedItems.filter(
-                  (item: CapturedItem) => item.summaryId !== numericSummaryId
-                ),
-              });
               navigate("/");
             }
           } else {
             // 유효하지 않은 summaryId (숫자로 변환 불가)
             alert("유효하지 않은 요약 ID입니다.");
-            // 유효하지 않은 summaryId 삭제 시도
-            if (items.savedItems && Array.isArray(items.savedItems)) {
-              const invalids = items.savedItems.filter(
-                (item: CapturedItem) =>
-                  item.summaryId && isNaN(parseInt(String(item.summaryId), 10))
-              );
-              if (invalids.length > 0) {
-                await chrome.storage.local.set({
-                  savedItems: items.savedItems.filter(
-                    (item: CapturedItem) =>
-                      !item.summaryId || !isNaN(parseInt(String(item.summaryId), 10))
-                  ),
-                });
-              }
-            }
             navigate("/");
           }
         } else {
@@ -76,10 +59,21 @@ export default function SummaryView() {
     }
 
     try {
+      // 요약 콘텐츠를 담은 가상 아이템 생성
+      const virtualItem: CapturedItem = {
+        id: Date.now(),
+        type: "text",
+        content: summary.summaryContent || "",
+        pageTitle: summary.title,
+        pageUrl: summary.url,
+        timestamp: summary.timestamp,
+        meta: { favicon: summary.favicon },
+      };
+
       const messagePayload = {
         action: "downloadItem",
-        item: summary, // The summary object itself is a CapturedItem
-        markdownContent: summary.summaryContent, // summaryContent is already markdown
+        item: virtualItem,
+        markdownContent: summary.summaryContent, // summaryContent는 이미 마크다운
       };
 
       const response = await chrome.runtime.sendMessage(messagePayload);
@@ -142,18 +136,18 @@ export default function SummaryView() {
         ) : summary ? (
           <div className="bg-white rounded-lg shadow p-5">
             <div className="flex items-center gap-3">
-              {summary?.meta?.favicon && (
+              {summary.favicon && (
                 <img
-                  src={summary.meta.favicon}
-                  alt={summary.pageTitle}
+                  src={summary.favicon}
+                  alt={summary.title}
                   className="w-12 h-12 object-cover rounded-lg mb-3"
                 />
               )}
-              <h2 className="text-3xl font-semibold mb-3">{summary.pageTitle}</h2>
+              <h2 className="text-3xl font-semibold mb-3">{summary.title}</h2>
             </div>
             <div className="text-gray-600 mb-4">
               <a
-                href={summary.pageUrl}
+                href={summary.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-500 hover:underline"

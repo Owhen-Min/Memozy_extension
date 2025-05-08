@@ -40,11 +40,26 @@ export interface CapturedItem {
   pageTitle: string;
   pageUrl: string;
   timestamp: Date | string;
-  meta?: MetaData;
+  meta?: {
+    originalType?: string;
+    saveType?: string;
+    domPath?: string;
+    errorMessage?: string;
+    favicon?: string;
+    format?: string;
+  };
+}
+
+export interface UrlGroup {
+  url: string;
+  title: string;
+  favicon?: string;
+  timestamp: Date | string; // 가장 최근 아이템의 timestamp
   summaryId?: number;
   summaryContent?: string;
   summaryType?: "markdown" | "ai";
   problemId?: number;
+  items: CapturedItem[];
 }
 
 // 알림 인터페이스

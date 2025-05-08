@@ -2,7 +2,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import "../../Global.css";
 import { useEffect, useState } from "react";
 import { useApiQuery } from "../../hooks/useApi";
-import { CapturedItem } from "../../types";
+import { UrlGroup } from "../../types";
 
 // Quiz API 응답 타입 정의
 interface QuizResponse {
@@ -19,7 +19,7 @@ interface QuizResponse {
 export default function ProblemView() {
   const { problemId } = useParams();
   const navigate = useNavigate();
-  const [quizSource, setQuizSource] = useState<CapturedItem | null>(null);
+  const [quizSource, setQuizSource] = useState<UrlGroup | null>(null);
   const numericProblemId = parseInt(problemId as string, 10);
   const [selectedQuizIds, setSelectedQuizIds] = useState<number[]>([]);
 
@@ -35,15 +35,18 @@ export default function ProblemView() {
   useEffect(() => {
     const loadProblem = async () => {
       try {
-        const source = await chrome.storage.local.get(["savedItems"]);
-        const items = source.savedItems || [];
-        const foundProblem = items.find(
-          (item: CapturedItem) => item.problemId === numericProblemId
+        // URL 그룹에서 problemId에 해당하는 그룹 찾기
+        const result = await chrome.storage.local.get(["urlGroups"]);
+        const urlGroups = result.urlGroups || [];
+
+        const foundProblemGroup = urlGroups.find(
+          (group: UrlGroup) => group.problemId === numericProblemId
         );
-        if (foundProblem) {
-          setQuizSource(foundProblem);
+
+        if (foundProblemGroup) {
+          setQuizSource(foundProblemGroup);
         } else {
-          // 요약을 찾을 수 없는 경우
+          // 문제를 찾을 수 없는 경우
           alert("문제를 찾을 수 없습니다.");
           navigate("/");
         }
@@ -56,6 +59,12 @@ export default function ProblemView() {
     loadProblem();
   }, [problemId, navigate]);
 
+  useEffect(() => {
+    if (quizData?.data) {
+      setSelectedQuizIds(quizData.data.map((quiz) => quiz.quizId));
+    }
+  }, [quizData]);
+
   return (
     <div className="max-w-3xl mx-auto bg-level1 text-black p-5">
       <div className="flex items-center mt-2 mb-4">
@@ -65,13 +74,21 @@ export default function ProblemView() {
 
       <div className="bg-white rounded-lg shadow p-6">
         <div className="w-full py-2 px-3 mb-4 border-b border-level5 flex items-center">
-          {quizSource?.meta?.favicon && (
-            <img src={quizSource?.meta?.favicon} alt="favicon" className="w-8 h-8 mr-3" />
+          {quizSource?.favicon && (
+            <img src={quizSource.favicon} alt="favicon" className="w-8 h-8 mr-3" />
           )}
-          <span className="text-xl font-bold line-clamp-1">{quizSource?.pageTitle}</span>
-          <button className="ml-auto text-sm border border-level3 bg-level2 text-level6 py-1 px-2 rounded-md cursor-pointer">
-            문제 다시 만들기
-          </button>
+          <span className="text-xl font-bold line-clamp-1">{quizSource?.title}</span>
+          <div className="flex ml-auto items-center gap-2">
+            <button
+              className="text-sm font-medium border-level3 bg-level2 py-2 px-2 rounded-md cursor-pointer border text-level6 hover:bg-level3 transition-colors"
+              onClick={() => navigate("/")}
+            >
+              목록으로
+            </button>
+            <button className="text-sm font-medium bg-main text-white py-2 px-3 rounded-md cursor-pointer hover:bg-blue-700 transition-colors">
+              문제 재요청
+            </button>
+          </div>
         </div>
 
         {isLoading ? (
@@ -115,14 +132,7 @@ export default function ProblemView() {
           <div className="text-center py-4">퀴즈 데이터가 없습니다.</div>
         )}
 
-        <div className="flex justify-end mt-4">
-          <button
-            className="bg-main text-white py-2 px-4 rounded hover:bg-blue-700 transition-colors text-sm font-medium"
-            onClick={() => window.history.back()}
-          >
-            목록으로 돌아가기
-          </button>
-        </div>
+        <div className="flex justify-end mt-4"></div>
       </div>
     </div>
   );

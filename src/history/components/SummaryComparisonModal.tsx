@@ -42,7 +42,7 @@ export default function SummaryComparisonModal({
 
   // 저장 API mutation 설정
   const { mutate: saveSummary, isPending: isSaving } = useApiMutation<
-    { success: boolean; data: string },
+    { success: boolean; data: string; errorMsg: string; errorCode: string },
     SummarySourceRequest
   >("/quiz-source", {
     onSuccess: (response) => {
@@ -53,7 +53,7 @@ export default function SummaryComparisonModal({
           response.data
         );
       } else {
-        window.alert("요약 저장 중 오류가 발생했습니다.");
+        window.alert(response.errorMsg);
       }
     },
     onError: (error) => {
