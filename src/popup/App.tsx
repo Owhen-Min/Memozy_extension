@@ -37,7 +37,7 @@ export default function App() {
       if (result.success) {
         setStatusMessage({
           type: "success",
-          message: "자료가 성공적으로 저장되었습니다",
+          message: "자료 저장 요청에 성공했습니다.",
         });
       } else {
         setStatusMessage({

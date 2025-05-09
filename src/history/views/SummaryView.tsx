@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router";
 import { useEffect, useState } from "react";
 import { CapturedItem, UrlGroup } from "../../types";
 import CustomReactMarkdown from "../../lib/react-markdown/CustomReactMarkdown";

@@ -88,7 +88,6 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
   const renderContent = () => {
     switch (item.type) {
       case "text":
-      case "html": // Also handle 'html' type if it exists
         let markdownContent = "";
         if (typeof item.content === "string") {
           try {
@@ -106,7 +105,7 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
 
         return (
           <div className="card-content relative text-sm">
-            <div className="prose prose-slate dark:prose-invert max-w-none overflow-auto">
+            <div className="prose prose-slate dark:prose-invert max-w-none">
               <CustomReactMarkdown>{markdownContent}</CustomReactMarkdown>
             </div>
           </div>
@@ -185,7 +184,7 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
             ref={textareaRef}
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-md mb-3 text-sm overflow-y-auto resize-none block"
+            className="w-full p-3 border border-gray-300 rounded-md mb-3 text-sm resize-none block"
             rows={1}
             aria-label="콘텐츠 수정"
           />
@@ -205,33 +204,30 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
           </div>
         </div>
       ) : (
-        <div className="relative">
-          {renderContent()}
-
-          {showScrollButton && (
-            <div className="sticky bottom-4 z-20 flex justify-end px-4 pointer-events-none">
-              <button
-                onClick={scrollToTop}
-                className="flex flex-col w-[40px] h-[40px] rounded-full border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center"
-                title="위로 이동"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 10l7-7m0 0l7 7m-7-7v18"
-                  />
-                </svg>
-              </button>
-            </div>
-          )}
+        <div className="relative">{renderContent()}</div>
+      )}
+      {showScrollButton && (
+        <div className="sticky bottom-4 z-20 flex justify-end px-4 pointer-events-none">
+          <button
+            onClick={scrollToTop}
+            className="flex flex-col w-[40px] h-[40px] rounded-full border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center"
+            title="위로 이동"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M5 10l7-7m0 0l7 7m-7-7v18"
+              />
+            </svg>
+          </button>
         </div>
       )}
     </div>

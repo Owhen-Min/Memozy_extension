@@ -320,16 +320,6 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
       if (message.action === "contentCaptured") {
         console.log("콘텐츠 캡처됨:", message.type);
 
-        const state = await getCurrentState();
-        if (!state.isCapturing) {
-          sendResponse({
-            success: false,
-            status: "disabled",
-            error: "캡처가 비활성화되어 있습니다.",
-          });
-          return;
-        }
-
         const pageUrl = sender.tab?.url || "";
         const pageTitle = sender.tab?.title || "";
 
@@ -479,10 +469,7 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
         const markdownContent = message.markdownContent as string | undefined;
 
         try {
-          if (
-            (item.type === "text" || item.type === "html") &&
-            typeof markdownContent === "string"
-          ) {
+          if (item.type === "text" && typeof markdownContent === "string") {
             const blob = new Blob([markdownContent], { type: "text/markdown;charset=utf-8" });
             const fileReader = new FileReader();
 

@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router";
 import "../../Global.css";
 import { useEffect, useState } from "react";
 import { useApiQuery, useApiMutation } from "../../hooks/useApi";

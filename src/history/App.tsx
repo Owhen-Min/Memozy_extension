@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route } from "react-router";
 import History from "./History";
 import SummaryView from "./views/SummaryView";
 import ProblemView from "./views/ProblemView";
