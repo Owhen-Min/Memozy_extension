@@ -304,6 +304,7 @@ export default function History() {
 
   // 아이템 다운로드 처리
   const handleDownload = async (item: CapturedItem) => {
+    console.log("handleDownload called with item:", item); // 함수 호출 및 전달된 아이템 확인
     try {
       let markdownContent: string | undefined = undefined;
 
@@ -653,7 +654,7 @@ export default function History() {
             {urlGroups.length > 0 && (
               <>
                 <button
-                  className="flex flex-col text-xs w-14 h-13 px-1 rounded border bg-main/80 border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center"
+                  className="flex flex-col text-xs w-14 h-13 px-1 rounded border bg-main/70 border-blue-600 text-white hover:bg-blue-700/70 transition-all flex items-center justify-center"
                   onClick={() => window.open("https://memozy.site/collection")}
                   title="웹으로 이동"
                 >
@@ -661,7 +662,7 @@ export default function History() {
                   <span className="text-sm">웹으로</span>
                 </button>
                 <button
-                  className="flex flex-col w-15 h-13 px-1 rounded border bg-warning/80 border-warning text-black hover:bg-error hover:text-white hover:border-error transition-all flex items-center justify-center"
+                  className="flex flex-col w-15 h-13 px-1 rounded border bg-warning/70 border-warning text-black hover:text-white hover:bg-warning-dark/70 hover:border-warning-dark transition-all flex items-center justify-center"
                   onClick={handleDeleteAll}
                   title="모든 기록 삭제"
                 >

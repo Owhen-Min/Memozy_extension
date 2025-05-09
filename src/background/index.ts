@@ -86,11 +86,6 @@ function parseHtmlToVNodes(htmlString: string): (VNode | VText)[] {
   }
 }
 
-console.log("드래그 & 저장 백그라운드 스크립트 로드됨");
-
-// 서비스 워커 활성 상태 유지
-console.log("서비스 워커 활성화");
-
 // 30초마다 ping 실행하여 활성 상태 유지
 const keepAlive = () => {
   setInterval(() => {
@@ -477,7 +472,138 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
       if (message.action === "contentScriptReady") {
         console.log("콘텐츠 스크립트 준비됨");
         sendResponse({ success: true, received: true });
-        return;
+      }
+      // 아이템 다운로드 요청 처리
+      if (message.action === "downloadItem") {
+        const item = message.item as CapturedItem;
+        const markdownContent = message.markdownContent as string | undefined;
+
+        try {
+          if (
+            (item.type === "text" || item.type === "html") &&
+            typeof markdownContent === "string"
+          ) {
+            const blob = new Blob([markdownContent], { type: "text/markdown;charset=utf-8" });
+            const fileReader = new FileReader();
+
+            fileReader.onloadend = function () {
+              const dataUrl = fileReader.result as string;
+              const pageTitle = item.pageTitle || "untitled";
+              const sanitizedTitle =
+                pageTitle.replace(/[<>:"/\\|?*]+/g, "_").substring(0, 50) || "download";
+              const filename = `${sanitizedTitle}.md`;
+
+              chrome.downloads.download(
+                {
+                  url: dataUrl,
+                  filename: filename,
+                },
+                (downloadId) => {
+                  if (chrome.runtime.lastError) {
+                    console.error("Markdown 다운로드 오류:", chrome.runtime.lastError.message);
+                    sendResponse({
+                      success: false,
+                      error: `다운로드 실패: ${chrome.runtime.lastError.message}`,
+                    } as Response);
+                  } else if (downloadId === undefined) {
+                    console.error("Markdown 다운로드 ID를 받지 못했습니다.");
+                    sendResponse({
+                      success: false,
+                      error: "다운로드가 시작되지 않았습니다. 브라우저 설정을 확인하세요.",
+                    } as Response);
+                  } else {
+                    sendResponse({ success: true, downloadId: downloadId } as Response);
+                  }
+                }
+              );
+            };
+
+            fileReader.onerror = function () {
+              console.error("FileReader 오류 발생");
+              sendResponse({
+                success: false,
+                error: "파일을 읽는 중 오류가 발생했습니다.",
+              } as Response);
+            };
+
+            fileReader.readAsDataURL(blob);
+          } else if (item.type === "image") {
+            // 사용자 제공 이미지 다운로드 로직으로 교체
+            try {
+              const imgContent = item.content as ImageContent;
+              if (!imgContent || !imgContent.dataUrl) {
+                // ImageContent 또는 dataUrl 유효성 검사
+                console.error("이미지 콘텐츠 또는 dataUrl이 유효하지 않습니다.", item);
+                sendResponse({
+                  success: false,
+                  error: "이미지 데이터가 올바르지 않습니다.",
+                } as Response);
+                return true;
+              }
+
+              const extension = imgContent.type ? imgContent.type.split("/")[1] || "png" : "png"; // 기본값 png 추가
+              const pageTitle = item.pageTitle || "image";
+              const sanitizedTitle =
+                pageTitle.replace(/[^a-zA-Z0-9가-힣\s_.-]/g, "_").substring(0, 30) || "image"; // 공백, 밑줄, 하이픈, 마침표 허용
+
+              let filename = imgContent.name
+                ? `${sanitizedTitle}-${imgContent.name}`
+                : `${sanitizedTitle}-${item.id}.${extension}`;
+              // 파일명에 확장자가 중복으로 들어가지 않도록 처리
+              if (
+                imgContent.name &&
+                !imgContent.name.toLowerCase().endsWith("." + extension.toLowerCase())
+              ) {
+                filename = `${sanitizedTitle}-${imgContent.name}.${extension}`;
+              } else if (!imgContent.name) {
+                filename = `${sanitizedTitle}-${item.id}.${extension}`;
+              } else {
+                filename = `${sanitizedTitle}-${imgContent.name}`;
+              }
+
+              chrome.downloads.download(
+                {
+                  url: imgContent.dataUrl,
+                  filename: filename,
+                },
+                (downloadId) => {
+                  if (chrome.runtime.lastError) {
+                    console.error("이미지 다운로드 오류:", chrome.runtime.lastError.message);
+                    sendResponse({
+                      success: false,
+                      error: `이미지 다운로드 실패: ${chrome.runtime.lastError.message}`,
+                    } as Response);
+                  } else if (downloadId === undefined) {
+                    console.error("이미지 다운로드 ID를 받지 못했습니다.");
+                    sendResponse({
+                      success: false,
+                      error: "이미지 다운로드가 시작되지 않았습니다. 브라우저 설정을 확인하세요.",
+                    } as Response);
+                  } else {
+                    sendResponse({ success: true, downloadId: downloadId } as Response);
+                  }
+                }
+              );
+            } catch (error: any) {
+              console.error("이미지 다운로드 처리 중 예외:", error);
+              sendResponse({
+                success: false,
+                error: error.message || "이미지 다운로드 중 알 수 없는 오류 발생",
+              } as Response);
+            }
+          } else {
+            console.warn("다운로드 지원하지 않는 타입 또는 markdownContent 누락:", item);
+            sendResponse({
+              success: false,
+              error:
+                "다운로드할 수 없는 콘텐츠입니다. Markdown 내용이 없거나 지원되지 않는 파일 형식입니다.",
+            });
+          }
+        } catch (e: any) {
+          console.error("downloadItem 처리 중 예외:", e);
+          sendResponse({ success: false, error: e.message || "다운로드 중 알 수 없는 오류 발생" });
+        }
+        return true; // 비동기 sendResponse를 위해 true 반환
       }
     } catch (error: any) {
       console.error("오류:", error.message || error);
@@ -524,28 +650,6 @@ chrome.action.onClicked.addListener((tab) => {
   chrome.action.setBadgeText({ text: "" });
 });
 
-function toggleCapturing(isCapturing?: boolean) {
-  getCurrentState().then((state) => {
-    const newState = isCapturing !== undefined ? isCapturing : !state.isCapturing;
-
-    // 상태 저장
-    chrome.storage.local.set({ isCapturing: newState });
-
-    // 콘텐츠 스크립트에 상태 전달
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]?.id) {
-        chrome.tabs.sendMessage(tabs[0].id, {
-          action: "toggleCapturing",
-          isCapturing: newState,
-        });
-      }
-    });
-
-    // 아이콘 업데이트
-    updateIcon(newState);
-  });
-}
-
 // 현재 상태 가져오기
 async function getCurrentState(): Promise<{ isCapturing: boolean; isHtmlMode: boolean }> {
   return new Promise((resolve) => {
@@ -554,77 +658,6 @@ async function getCurrentState(): Promise<{ isCapturing: boolean; isHtmlMode: bo
         isCapturing: result.isCapturing || false,
         isHtmlMode: result.isHtmlMode || false,
       });
-    });
-  });
-}
-
-// 아이콘 업데이트
-function updateIcon(isCapturing: boolean) {
-  // 활성화/비활성화 상태에 따라 아이콘 변경
-  const iconPath = isCapturing ? "/icons/icon-active-48.png" : "/icons/icon-default-48.png";
-
-  chrome.action.setIcon({
-    path: iconPath,
-  });
-}
-
-// HTML에서 주요 콘텐츠 추출 함수
-async function extractContentFromSavedHtml(itemId: number): Promise<any> {
-  return new Promise((resolve, reject) => {
-    chrome.storage.local.get(["savedItems"], (result) => {
-      try {
-        const savedItems = result.savedItems || [];
-        const itemIndex = savedItems.findIndex((i: CapturedItem) => i.id === itemId);
-
-        if (itemIndex === -1 || savedItems[itemIndex].type !== "html") {
-          return reject(new Error("HTML 항목을 찾을 수 없음"));
-        }
-
-        const item = savedItems[itemIndex];
-
-        // 이미 추출된 콘텐츠가 있는지 확인
-        if (item.meta?.extractedContent) {
-          console.log("이미 추출된 콘텐츠가 있습니다.");
-          return resolve(item.meta.extractedContent);
-        }
-
-        // 외부 라이브러리 동적 로드
-        import("@wrtnlabs/web-content-extractor")
-          .then(({ extractContent }) => {
-            try {
-              const htmlContent = item.content as string;
-              // 라이브러리가 직접 본문 내용 문자열을 반환
-              const extractedText = extractContent(htmlContent);
-              console.log("추출된 콘텐츠:", extractedText);
-              // 추출된 콘텐츠를 항목 메타데이터에 저장
-              const extractedContent = {
-                content: extractedText, // 추출된 본문 내용 저장
-              };
-
-              // 항목 업데이트
-              savedItems[itemIndex].meta = {
-                ...(item.meta || {}),
-                extractedContent,
-              };
-
-              // 업데이트된 목록 저장
-              chrome.storage.local.set({ savedItems }, () => {
-                console.log("추출된 콘텐츠가 저장되었습니다.");
-                resolve(extractedContent);
-              });
-            } catch (error) {
-              console.error("콘텐츠 추출 처리 오류:", error);
-              reject(error);
-            }
-          })
-          .catch((error) => {
-            console.error("web-content-extractor 로드 오류:", error);
-            reject(new Error("콘텐츠 추출 라이브러리 로드 실패"));
-          });
-      } catch (error) {
-        console.error("HTML 콘텐츠 추출 오류:", error);
-        reject(error);
-      }
     });
   });
 }

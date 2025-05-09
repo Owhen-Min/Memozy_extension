@@ -101,6 +101,7 @@ export interface Message {
   itemId?: number; // 콘텐츠 추출을 위한 아이템 ID
   url?: string; // iframe URL을 위한 속성
   favicon?: string;
+  markdownContent?: string; // 아이템 다운로드 시 마크다운 콘텐츠
 }
 
 // 응답 인터페이스

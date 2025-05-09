@@ -3,6 +3,7 @@ import "../../Global.css";
 import { useEffect, useState } from "react";
 import { useApiQuery, useApiMutation } from "../../hooks/useApi";
 import { UrlGroup } from "../../types";
+import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from "@headlessui/react";
 
 // Quiz API 응답 타입 정의
 interface QuizResponse {
@@ -215,13 +216,13 @@ export default function ProblemView() {
           <span className="text-xl font-bold line-clamp-1">{quizSource?.title}</span>
           <div className="flex ml-auto items-center gap-2">
             <button
-              className="flex flex-col text-xs w-14 h-12 px-1 rounded border bg-level2 border-level3 text-level6 hover:bg-level3 transition-all flex items-center justify-center"
+              className="flex flex-col text-xs w-14 h-13 px-1 rounded border bg-level2 border-level3 text-level6 hover:bg-level3 transition-all flex items-center justify-center"
               onClick={() => navigate("/")}
             >
               <span className="text-lg">🏠</span>
               <span className="text-base">홈</span>
             </button>
-            <button className="flex flex-col text-xs w-14 h-12 px-1 rounded border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center">
+            <button className="flex flex-col text-xs w-14 h-13 px-1 rounded border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center">
               <span className="text-lg">🔄</span>
               <span className="text-base">재요청</span>
             </button>
@@ -278,39 +279,134 @@ export default function ProblemView() {
         )}
         <div className="flex w-full items-center justify-center flex-wrap">
           <span className="text-base font-medium flex-shrink-0">선택한 퀴즈를</span>
-          <select
-            name="collection"
-            id="collection"
-            className="w-[30vw] py-1 px-3 border border-light-gray rounded text-sm ml-2 h-8"
-            value={
-              selectedCollectionId === null
-                ? ""
-                : selectedCollectionId === -1
-                  ? "-1"
-                  : selectedCollectionId
-            }
-            onChange={(e) => {
-              if (e.target.value === "") {
-                setSelectedCollectionId(null);
-              } else if (e.target.value === "-1") {
-                openNewCollectionModal();
-                setSelectedCollectionId(null);
-              } else {
-                setSelectedCollectionId(parseInt(e.target.value, 10));
-              }
-            }}
-          >
-            <option value="" disabled hidden></option>
-            <option value="-1">새 컬렉션 생성하기</option>
-            {collectionData?.data?.map((collection) => (
-              <option key={collection.id} value={collection.id}>
-                {collection.name}
-              </option>
-            ))}
-          </select>
+          <div className="relative ml-2 w-[30vw]">
+            <Listbox
+              value={selectedCollectionId}
+              onChange={(value) => {
+                if (value === -1) {
+                  openNewCollectionModal();
+                  setSelectedCollectionId(null);
+                } else {
+                  setSelectedCollectionId(value);
+                }
+              }}
+            >
+              <ListboxButton className="relative w-full cursor-default rounded-md bg-white py-1 pl-3 pr-10 text-left border border-light-gray text-sm h-8 focus:outline-none focus:ring-2 focus:ring-main focus:border-main">
+                <span className="block truncate">
+                  {selectedCollectionId === null
+                    ? "컬렉션 선택"
+                    : selectedCollectionId === -1
+                      ? "새 컬렉션 생성하기"
+                      : collectionData?.data?.find((c) => c.id === selectedCollectionId)?.name ||
+                        "컬렉션 선택"}
+                </span>
+                <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={1.5}
+                    stroke="currentColor"
+                    className="w-5 h-5 text-gray-400"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9"
+                    />
+                  </svg>
+                </span>
+              </ListboxButton>
+              <ListboxOptions
+                anchor="bottom"
+                transition
+                className="absolute z-10 mt-1 max-h-60 rounded-md bg-white py-1 text-sm shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none transition ease-in duration-100 data-closed:opacity-0"
+              >
+                <ListboxOption
+                  className={({ active }) =>
+                    `relative cursor-default select-none py-2 pl-10 pr-4 ${
+                      active ? "bg-main text-white" : "text-gray-900"
+                    }`
+                  }
+                  value={-1}
+                >
+                  {({ selected, active }) => (
+                    <>
+                      <span
+                        className={`block truncate ${selected ? "font-medium" : "font-normal"}`}
+                      >
+                        새 컬렉션 생성하기
+                      </span>
+                      {selected ? (
+                        <span
+                          className={`absolute inset-y-0 left-0 flex items-center pl-3 ${active ? "text-white" : "text-main"}`}
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth={1.5}
+                            stroke="currentColor"
+                            className="w-5 h-5"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M4.5 12.75l6 6 9-13.5"
+                            />
+                          </svg>
+                        </span>
+                      ) : null}
+                    </>
+                  )}
+                </ListboxOption>
+                {collectionData?.data?.map((collection) => (
+                  <ListboxOption
+                    key={collection.id}
+                    className={({ active }) =>
+                      `relative cursor-default select-none py-2 pl-10 pr-4 ${
+                        active ? "bg-main text-white" : "text-gray-900"
+                      }`
+                    }
+                    value={collection.id}
+                  >
+                    {({ selected, active }) => (
+                      <>
+                        <span
+                          className={`block truncate ${selected ? "font-medium" : "font-normal"}`}
+                        >
+                          {collection.name}
+                        </span>
+                        {selected ? (
+                          <span
+                            className={`absolute inset-y-0 left-0 flex items-center pl-3 ${active ? "text-white" : "text-main"}`}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              strokeWidth={1.5}
+                              stroke="currentColor"
+                              className="w-5 h-5"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M4.5 12.75l6 6 9-13.5"
+                              />
+                            </svg>
+                          </span>
+                        ) : null}
+                      </>
+                    )}
+                  </ListboxOption>
+                ))}
+              </ListboxOptions>
+            </Listbox>
+          </div>
           <span className="ml-2 text-base font-medium flex-shrink-0">에 </span>
           <button
-            className={`ml-3 flex flex-col text-base w-[80px] h-[40px] px-1 rounded border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center ${
+            className={`ml-3 flex flex-col text-base w-20 h-8 px-1 rounded border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center ${
               isSavingQuiz ? "opacity-50 cursor-not-allowed" : ""
             }`}
             onClick={handleSave}

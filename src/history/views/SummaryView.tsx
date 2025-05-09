@@ -112,7 +112,7 @@ export default function SummaryView() {
         </div>
         <div className="flex gap-2">
           <button
-            className="flex flex-col w-14 h-15 px-1 rounded border bg-warning border-warning text-white hover:bg-warning-dark hover:text-white transition-all flex items-center justify-center"
+            className="flex flex-col w-14 h-15 px-1 rounded border bg-warning/70 border-warning text-black hover:text-white hover:bg-warning-dark/70 transition-all flex items-center justify-center"
             onClick={handleDownloadSummary}
             disabled={loading || !summary}
           >
@@ -120,7 +120,7 @@ export default function SummaryView() {
             <span className="text-base">저장</span>
           </button>
           <button
-            className="flex flex-col w-14 h-15 px-1 rounded border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center"
+            className="flex flex-col w-14 h-15 px-1 rounded border bg-main/70 border-blue-600 text-white hover:bg-blue-700/70 transition-all flex items-center justify-center"
             onClick={() => navigate("/")}
           >
             <span className="text-lg">🏠</span>
