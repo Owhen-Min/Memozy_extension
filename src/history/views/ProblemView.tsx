@@ -4,17 +4,20 @@ import { useEffect, useState } from "react";
 import { useApiQuery, useApiMutation } from "../../hooks/useApi";
 import { UrlGroup } from "../../types";
 import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from "@headlessui/react";
+import NewProblemModal from "../features/problemView/NewProblemModal";
+
+export interface Quiz {
+  quizId: number;
+  type: string;
+  content: string;
+}
 
 // Quiz API 응답 타입 정의
 interface QuizResponse {
   success: boolean;
   errorMsg?: string;
   errorCode?: string;
-  data: Array<{
-    quizId: number;
-    type: string;
-    content: string;
-  }>;
+  data: Array<Quiz>;
 }
 
 interface SaveQuizResponse {
@@ -47,6 +50,7 @@ export default function ProblemView() {
   const [newCollectionName, setNewCollectionName] = useState<string>("");
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState<boolean>(false);
+  const [isNewProblemModalOpen, setIsNewProblemModalOpen] = useState<boolean>(false);
   // API로부터 퀴즈 데이터 가져오기
   const {
     data: quizData,
@@ -195,11 +199,41 @@ export default function ProblemView() {
     loadProblem();
   }, [problemId, navigate]);
 
+  const handleRequestAgain = () => {
+    setIsNewProblemModalOpen(true);
+  };
+
   useEffect(() => {
     if (quizData?.data) {
       setSelectedIds(quizData.data.map((quiz) => quiz.quizId));
     }
   }, [quizData]);
+
+  // 문제 재생성 API 호출
+  const { mutate: renewQuizzes, isPending: isRenewingQuizzes } = useApiMutation<
+    { success: boolean; data: any },
+    { quizIdList: number[]; quizTypes: string[] }
+  >(`/quiz/questions/${problemId}/renew`, {
+    onSuccess: (response) => {
+      if (response.success) {
+        setIsNewProblemModalOpen(false);
+        // 성공 후 퀴즈 데이터 다시 불러오기
+        window.location.reload();
+      } else {
+        alert("문제 재생성에 실패했습니다.");
+      }
+    },
+    onError: () => {
+      alert("문제 재생성 중 오류가 발생했습니다.");
+    },
+  });
+
+  const handleRenewQuizzes = (selectedQuizIds: number[], selectedQuizTypes: string[]) => {
+    renewQuizzes({
+      quizIdList: selectedQuizIds,
+      quizTypes: selectedQuizTypes,
+    });
+  };
 
   return (
     <div className="max-w-3xl mx-auto bg-level1 text-black p-5">
@@ -222,7 +256,10 @@ export default function ProblemView() {
               <span className="text-lg">🏠</span>
               <span className="text-base">홈</span>
             </button>
-            <button className="flex flex-col text-xs w-14 h-13 px-1 rounded border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center">
+            <button
+              className="flex flex-col text-xs w-14 h-13 px-1 rounded border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center"
+              onClick={handleRequestAgain}
+            >
               <span className="text-lg">🔄</span>
               <span className="text-base">재요청</span>
             </button>
@@ -317,6 +354,47 @@ export default function ProblemView() {
                   </svg>
                 </span>
               </ListboxButton>
+              {collectionData?.data?.map((collection) => (
+                <ListboxOption
+                  key={collection.id}
+                  className={({ active }) =>
+                    `relative cursor-default select-none py-2 pl-10 pr-4 ${
+                      active ? "bg-main text-white" : "text-gray-900"
+                    }`
+                  }
+                  value={collection.id}
+                >
+                  {({ selected, active }) => (
+                    <>
+                      <span
+                        className={`block truncate ${selected ? "font-medium" : "font-normal"}`}
+                      >
+                        {collection.name}
+                      </span>
+                      {selected ? (
+                        <span
+                          className={`absolute inset-y-0 left-0 flex items-center pl-3 ${active ? "text-white" : "text-main"}`}
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth={1.5}
+                            stroke="currentColor"
+                            className="w-5 h-5"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M4.5 12.75l6 6 9-13.5"
+                            />
+                          </svg>
+                        </span>
+                      ) : null}
+                    </>
+                  )}
+                </ListboxOption>
+              ))}
               <ListboxOptions
                 anchor="bottom"
                 transition
@@ -360,47 +438,6 @@ export default function ProblemView() {
                     </>
                   )}
                 </ListboxOption>
-                {collectionData?.data?.map((collection) => (
-                  <ListboxOption
-                    key={collection.id}
-                    className={({ active }) =>
-                      `relative cursor-default select-none py-2 pl-10 pr-4 ${
-                        active ? "bg-main text-white" : "text-gray-900"
-                      }`
-                    }
-                    value={collection.id}
-                  >
-                    {({ selected, active }) => (
-                      <>
-                        <span
-                          className={`block truncate ${selected ? "font-medium" : "font-normal"}`}
-                        >
-                          {collection.name}
-                        </span>
-                        {selected ? (
-                          <span
-                            className={`absolute inset-y-0 left-0 flex items-center pl-3 ${active ? "text-white" : "text-main"}`}
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              strokeWidth={1.5}
-                              stroke="currentColor"
-                              className="w-5 h-5"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M4.5 12.75l6 6 9-13.5"
-                              />
-                            </svg>
-                          </span>
-                        ) : null}
-                      </>
-                    )}
-                  </ListboxOption>
-                ))}
               </ListboxOptions>
             </Listbox>
           </div>
@@ -495,6 +532,17 @@ export default function ProblemView() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 문제 재생성 모달 */}
+      {quizData?.data && (
+        <NewProblemModal
+          isOpen={isNewProblemModalOpen}
+          onClose={() => setIsNewProblemModalOpen(false)}
+          existingQuizs={quizData.data}
+          onSubmit={handleRenewQuizzes}
+          isSubmitting={isRenewingQuizzes}
+        />
       )}
     </div>
   );

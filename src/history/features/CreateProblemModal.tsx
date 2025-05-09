@@ -31,6 +31,7 @@ export default function CreateProblemModal({ isOpen, onClose, onSubmit }: Create
       quizCount,
       quizTypes,
     });
+    onClose();
   };
 
   return (
@@ -60,7 +61,7 @@ export default function CreateProblemModal({ isOpen, onClose, onSubmit }: Create
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                // onClick={() => handleQuestionTypeChange("사지선다")}
+                onClick={() => handleQuestionTypeChange("사지선다")}
                 className={`px-3 py-1 rounded border ${
                   quizTypes.includes("사지선다")
                     ? "bg-blue-500 text-white border-blue-500"
@@ -71,8 +72,8 @@ export default function CreateProblemModal({ isOpen, onClose, onSubmit }: Create
               </button>
               <button
                 type="button"
-                disabled={true}
-                title="추후 업데이트 예정입니다."
+                // disabled={true}
+                // title="추후 업데이트 예정입니다."
                 onClick={() => handleQuestionTypeChange("OX퀴즈")}
                 className={`px-3 py-1 rounded border disabled:opacity-50 ${
                   quizTypes.includes("OX퀴즈")
@@ -84,8 +85,8 @@ export default function CreateProblemModal({ isOpen, onClose, onSubmit }: Create
               </button>
               <button
                 type="button"
-                disabled={true}
-                title="추후 업데이트 예정입니다."
+                // disabled={true}
+                // title="추후 업데이트 예정입니다."
                 onClick={() => handleQuestionTypeChange("단답형")}
                 className={`px-3 py-1 rounded border disabled:opacity-50 ${
                   quizTypes.includes("단답형")

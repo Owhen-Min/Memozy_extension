@@ -84,6 +84,7 @@ export default function CreateSummaryModal({
   ) => {
     setIsComparisonModalOpen(false);
     onSubmit(selectedItems, summaryContent, summaryType, summaryId);
+    onClose();
   };
 
   // 간단한 콘텐츠 미리보기 함수

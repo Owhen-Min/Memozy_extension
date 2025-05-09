@@ -207,7 +207,7 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
         <div className="relative">{renderContent()}</div>
       )}
       {showScrollButton && (
-        <div className="sticky bottom-4 z-20 flex justify-end px-4 pointer-events-none">
+        <div className="sticky bottom-4 z-20 flex justify-end px-4 cursor-pointer">
           <button
             onClick={scrollToTop}
             className="flex flex-col w-[40px] h-[40px] rounded-full border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center"

@@ -53,7 +53,7 @@ export default function History() {
 
   // 아이템 CRUD 관련 훅
   const { handleDeleteAll, handleDeleteUrlGroup, handleDelete, handleDownload, handleEdit } =
-    useHistoryItems(urlGroups, setUrlGroups);
+    useHistoryItems(urlGroups);
 
   // 요약 관련 훅
   const { handleSummaryModalSubmit } = useSummary(setUrlGroups, setSummarizingUrls);

@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { CapturedItem, UrlGroup } from "../../types";
 import customTurndown from "../../lib/turndown/customTurndown";
 
-export function useHistoryItems(urlGroups: UrlGroup[], setUrlGroups: (groups: UrlGroup[]) => void) {
+export function useHistoryItems(urlGroups: UrlGroup[]) {
   // 모든 아이템 삭제 처리
   const handleDeleteAll = useCallback(async () => {
     if (window.confirm("모든 캡처 아이템을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) {

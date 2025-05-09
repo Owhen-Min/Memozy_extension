@@ -1,5 +1,6 @@
 import { Message, CapturedItem, Response as ExtensionResponse } from "../types";
 import { extractContent } from "@wrtnlabs/web-content-extractor";
+import { Readability } from "@mozilla/readability";
 
 // NotificationMessage 타입 정의 추가
 type NotificationMessage = {
@@ -580,10 +581,17 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
         const doctype = document.doctype
           ? new XMLSerializer().serializeToString(document.doctype)
           : "";
-        const contentHtmls = extractContent(
-          doctype + document.documentElement.outerHTML
-        ).contentHtmls;
-        html = contentHtmls.join("");
+        const article = new Readability(
+          new DOMParser().parseFromString(doctype + document.documentElement.outerHTML, "text/html")
+        ).parse();
+        if (article?.content) {
+          html = article.content;
+        } else {
+          const contentHtmls = extractContent(
+            doctype + document.documentElement.outerHTML
+          ).contentHtmls;
+          html = contentHtmls.join("\n");
+        }
         console.log("전체 document HTML을 사용합니다.");
       } catch (extractError) {
         console.error("HTML 추출 중 오류:", extractError);
