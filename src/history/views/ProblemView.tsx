@@ -56,6 +56,7 @@ export default function ProblemView() {
     data: quizData,
     isLoading: quizLoading,
     isError: quizError,
+    refetch: refetchQuiz,
   } = useApiQuery<QuizResponse>(["quiz", problemId as string], `/quiz/${numericProblemId}`, {
     enabled: !!numericProblemId,
   });
@@ -78,6 +79,7 @@ export default function ProblemView() {
                 return {
                   ...group,
                   items: [], // items를 비움
+                  isSubmitted: true,
                 };
               }
               return group;
@@ -98,6 +100,12 @@ export default function ProblemView() {
   );
 
   const handleSave = () => {
+    if (quizSource?.isSubmitted) {
+      alert("이미 문제가 생성된 그룹입니다.");
+      navigate("/");
+      return;
+    }
+
     if (!selectedCollectionId) {
       alert("컬렉션을 선택해주세요.");
       return;
@@ -218,7 +226,7 @@ export default function ProblemView() {
       if (response.success) {
         setIsNewProblemModalOpen(false);
         // 성공 후 퀴즈 데이터 다시 불러오기
-        window.location.reload();
+        refetchQuiz();
       } else {
         alert("문제 재생성에 실패했습니다.");
       }
@@ -354,52 +362,53 @@ export default function ProblemView() {
                   </svg>
                 </span>
               </ListboxButton>
-              {collectionData?.data?.map((collection) => (
-                <ListboxOption
-                  key={collection.id}
-                  className={({ active }) =>
-                    `relative cursor-default select-none py-2 pl-10 pr-4 ${
-                      active ? "bg-main text-white" : "text-gray-900"
-                    }`
-                  }
-                  value={collection.id}
-                >
-                  {({ selected, active }) => (
-                    <>
-                      <span
-                        className={`block truncate ${selected ? "font-medium" : "font-normal"}`}
-                      >
-                        {collection.name}
-                      </span>
-                      {selected ? (
-                        <span
-                          className={`absolute inset-y-0 left-0 flex items-center pl-3 ${active ? "text-white" : "text-main"}`}
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            strokeWidth={1.5}
-                            stroke="currentColor"
-                            className="w-5 h-5"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M4.5 12.75l6 6 9-13.5"
-                            />
-                          </svg>
-                        </span>
-                      ) : null}
-                    </>
-                  )}
-                </ListboxOption>
-              ))}
+
               <ListboxOptions
                 anchor="bottom"
                 transition
-                className="absolute z-10 mt-1 max-h-60 rounded-md bg-white py-1 text-sm shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none transition ease-in duration-100 data-closed:opacity-0"
+                className="absolute w-[30vw] z-10 mt-1 max-h-60 rounded-md bg-white py-1 text-sm shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none transition ease-in duration-100 data-closed:opacity-0"
               >
+                {collectionData?.data?.map((collection) => (
+                  <ListboxOption
+                    key={collection.id}
+                    className={({ active }) =>
+                      `relative cursor-default select-none py-2 pl-10 pr-4 ${
+                        active ? "bg-main text-white" : "text-gray-900"
+                      }`
+                    }
+                    value={collection.id}
+                  >
+                    {({ selected, active }) => (
+                      <>
+                        <span
+                          className={`block truncate ${selected ? "font-medium" : "font-normal"}`}
+                        >
+                          {collection.name}
+                        </span>
+                        {selected ? (
+                          <span
+                            className={`absolute inset-y-0 left-0 flex items-center pl-3 ${active ? "text-white" : "text-main"}`}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              strokeWidth={1.5}
+                              stroke="currentColor"
+                              className="w-5 h-5"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M4.5 12.75l6 6 9-13.5"
+                              />
+                            </svg>
+                          </span>
+                        ) : null}
+                      </>
+                    )}
+                  </ListboxOption>
+                ))}
                 <ListboxOption
                   className={({ active }) =>
                     `relative cursor-default select-none py-2 pl-10 pr-4 ${

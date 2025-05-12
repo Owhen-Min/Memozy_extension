@@ -1,6 +1,6 @@
 {
-  "name": "react-drag-save-extension",
-  "version": "1.1.0",
+  "name": "memozy",
+  "version": "1.2.1",
   "description": "",
   "main": "index.js",
   "scripts": {

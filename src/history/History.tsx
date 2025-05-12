@@ -238,23 +238,29 @@ export default function History() {
                   </button>
                   <button
                     className={`flex flex-col text-xs w-[35px] h-[50px] px-1 rounded border transition-all flex items-center justify-center gap-1 ${
-                      group.problemId
-                        ? "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 cursor-pointer"
-                        : group.summaryId && !creatingProblemsUrls[group.url]
-                          ? "bg-white border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer"
-                          : "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
+                      group.isSubmitted
+                        ? "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
+                        : group.problemId
+                          ? "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 cursor-pointer"
+                          : group.summaryId && !creatingProblemsUrls[group.url]
+                            ? "bg-white border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer"
+                            : "bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed"
                     } ${creatingProblemsUrls[group.url] ? "opacity-50 cursor-wait" : ""}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       if (!creatingProblemsUrls[group.url]) openProblemModal(group);
                     }}
-                    disabled={!group.summaryId || creatingProblemsUrls[group.url]}
+                    disabled={
+                      !group.summaryId || creatingProblemsUrls[group.url] || group.isSubmitted
+                    }
                     title={
-                      group.problemId
-                        ? "문제 보기"
-                        : !group.summaryId
-                          ? "요약 후 문제 생성 가능"
-                          : "문제 만들기"
+                      group.isSubmitted
+                        ? "해당 자료에서 문제를 이미 제출했습니다."
+                        : group.problemId
+                          ? "문제 보기"
+                          : !group.summaryId
+                            ? "요약 후 문제 생성 가능"
+                            : "문제 만들기"
                     }
                   >
                     {creatingProblemsUrls[group.url] ? (

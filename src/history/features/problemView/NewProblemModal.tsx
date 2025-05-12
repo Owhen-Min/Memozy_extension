@@ -72,7 +72,7 @@ export default function NewProblemModal({
         <h2 className="text-xl font-bold mb-4">문제 재생성</h2>
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
-            <label className="block font-medium mb-2">재생성할 문제 선택</label>
+            <label className="block font-medium mb-2">남길 문제 선택</label>
             <div className="flex justify-end mb-2 space-x-2">
               <button
                 type="button"
@@ -91,7 +91,13 @@ export default function NewProblemModal({
             </div>
             <div className="max-h-40 overflow-y-auto border rounded-md p-2">
               {existingQuizs.map((quiz) => (
-                <div key={quiz.quizId} className="flex items-center mb-1">
+                <div
+                  key={quiz.quizId}
+                  className="flex items-center mb-1"
+                  onClick={() => {
+                    toggleQuizId(quiz.quizId);
+                  }}
+                >
                   <input
                     type="checkbox"
                     id={`quiz-${quiz.quizId}`}

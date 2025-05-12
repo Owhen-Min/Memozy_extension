@@ -1,5 +1,5 @@
 // 캡처된 아이템 타입
-export type ItemType = "text" | "html" | "image" | "error";
+export type ItemType = "text" | "image" | "error";
 
 // 알림 타입
 export type NotificationType = "success" | "error" | "info" | "warning";
@@ -60,6 +60,7 @@ export interface UrlGroup {
   summaryType?: "markdown" | "ai";
   problemId?: number;
   items: CapturedItem[];
+  isSubmitted?: boolean;
 }
 
 // 알림 인터페이스
