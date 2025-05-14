@@ -27,6 +27,8 @@ export function useHistoryUI() {
   const [selectedGroupInfo, setSelectedGroupInfo] = useState<{
     url: string;
     title: string;
+    summaryId?: number;
+    userEmail?: string;
   } | null>(null);
   const [selectedItemGroupForSummary, setSelectedItemGroupForSummary] = useState<CapturedItem[]>(
     []
@@ -58,7 +60,12 @@ export function useHistoryUI() {
       }
 
       setSelectedItemGroupForSummary(summarizableItems);
-      setSelectedGroupInfo({ url: group.url, title: group.title });
+      setSelectedGroupInfo({
+        url: group.url,
+        title: group.title,
+        summaryId: group.summaryId,
+        userEmail: group.userEmail,
+      });
       setIsSummaryModalOpen(true);
     },
     [authToken, navigate]
@@ -79,7 +86,12 @@ export function useHistoryUI() {
 
       // 대표 아이템으로 첫 번째 아이템 사용
       setSelectedItemForProblem(group.items.length > 0 ? group.items[0] : null);
-      setSelectedGroupInfo({ url: group.url, title: group.title });
+      setSelectedGroupInfo({
+        url: group.url,
+        title: group.title,
+        summaryId: group.summaryId,
+        userEmail: group.userEmail,
+      });
       setIsProblemModalOpen(true);
     },
     [navigate]

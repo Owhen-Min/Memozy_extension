@@ -2,112 +2,151 @@ import { useCallback } from "react";
 import { CapturedItem, UrlGroup } from "../../types";
 import customTurndown from "../../lib/turndown/customTurndown";
 
-export function useHistoryItems(urlGroups: UrlGroup[]) {
-  // 모든 아이템 삭제 처리
+export function useHistoryItems(urlGroups: UrlGroup[], userEmail: string | null) {
+  // 모든 아이템 삭제 처리 (현재 사용자의 것만)
   const handleDeleteAll = useCallback(async () => {
-    if (window.confirm("모든 캡처 아이템을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) {
+    if (!userEmail) {
+      alert("로그인 정보가 없어 모든 항목을 삭제할 수 없습니다.");
+      return;
+    }
+    if (
+      window.confirm(
+        "현재 사용자의 모든 캡처 아이템을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다."
+      )
+    ) {
       try {
-        // urlGroups는 유지하되 각 그룹의 items 배열만 비우기
-        const currentData = await chrome.storage.local.get(["urlGroups"]);
-        const currentGroups = (currentData.urlGroups || []) as UrlGroup[];
+        const currentData = await chrome.storage.local.get(["savedItems", "urlGroups"]);
+        const allItems = (currentData.savedItems || []) as CapturedItem[];
+        const allGroups = (currentData.urlGroups || []) as UrlGroup[];
 
-        const preservedGroups = currentGroups.map((group) => ({
-          ...group,
-          items: [], // 아이템은 비우고 그룹 정보는 유지
-        }));
+        // 현재 사용자의 아이템만 필터링하여 삭제
+        const remainingItems = allItems.filter((item) => item.userEmail !== userEmail);
+
+        // 현재 사용자의 그룹은 아이템을 비우고, 다른 사용자 그룹은 유지
+        const updatedGroups = allGroups
+          .map((group) => {
+            if (group.userEmail === userEmail) {
+              return { ...group, items: [] };
+            }
+            return group;
+          })
+          .filter((group) => group.userEmail !== userEmail || group.items.length > 0); // 현재 사용자의 빈 그룹은 제거하거나, 필요시 유지
 
         await chrome.storage.local.set({
-          savedItems: [],
-          urlGroups: preservedGroups,
+          savedItems: remainingItems,
+          urlGroups: updatedGroups,
         });
+        // UI 업데이트는 History.tsx의 useEffect가 처리할 것으로 예상
       } catch (error) {
-        console.error("모든 아이템 삭제 오류:", error);
-        alert("모든 아이템 삭제 중 오류가 발생했습니다.");
+        console.error("모든 아이템 삭제 오류 (현재 사용자):", error);
+        alert("현재 사용자의 모든 아이템 삭제 중 오류가 발생했습니다.");
       }
     }
-  }, []);
+  }, [userEmail]);
 
-  // URL별 아이템 삭제 처리
+  // URL별 아이템 삭제 처리 (현재 사용자의 그룹만)
   const handleDeleteUrlGroup = useCallback(
     async (pageUrl: string) => {
-      const group = urlGroups.find((g) => g.url === pageUrl);
-      if (!group) return;
+      if (!userEmail) {
+        alert("로그인 정보가 없어 그룹을 삭제할 수 없습니다.");
+        return;
+      }
+      const groupToDelete = urlGroups.find((g) => g.url === pageUrl && g.userEmail === userEmail);
+      if (!groupToDelete) {
+        alert("삭제할 그룹을 찾을 수 없거나 다른 사용자의 그룹입니다.");
+        return;
+      }
 
       if (
         window.confirm(
-          `'${group.title}' 그룹의 모든 내용을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`
+          `'${groupToDelete.title}' 그룹의 모든 내용을 삭제하시겠습니까? (현재 사용자만 해당)`
         )
       ) {
         try {
-          // 현재 데이터 가져오기
           const currentData = await chrome.storage.local.get(["savedItems", "urlGroups"]);
-          const currentItems = (currentData.savedItems || []) as CapturedItem[];
-          const currentGroups = (currentData.urlGroups || []) as UrlGroup[];
+          const allItems = (currentData.savedItems || []) as CapturedItem[];
+          const allGroups = (currentData.urlGroups || []) as UrlGroup[];
 
-          // 아이템 필터링
-          const updatedItems = currentItems.filter((item) => item.pageUrl !== pageUrl);
+          // 현재 사용자의 해당 URL 아이템만 필터링하여 삭제
+          const remainingItems = allItems.filter(
+            (item) => !(item.pageUrl === pageUrl && item.userEmail === userEmail)
+          );
 
-          // 그룹 업데이트 - 요약과 문제 정보는 유지하고 아이템만 비우기
-          const updatedGroups = currentGroups.map((group) => {
-            if (group.url === pageUrl) {
-              return {
-                ...group,
-                items: [], // 아이템은 비우고 그룹 정보는 유지
-              };
-            }
-            return group;
-          });
+          // 해당 그룹의 아이템을 비우거나 그룹 자체를 제거 (현재 사용자 그룹만 해당)
+          const updatedGroups = allGroups
+            .map((group) => {
+              if (group.url === pageUrl && group.userEmail === userEmail) {
+                return { ...group, items: [] }; // 아이템만 비움
+              }
+              return group;
+            })
+            .filter(
+              (g) => !(g.url === pageUrl && g.userEmail === userEmail && g.items.length === 0)
+            ); // 빈 그룹이면 제거
+          // 혹은 .filter(g => g.url !== pageUrl || g.userEmail !== userEmail); // 그룹 자체를 제거
 
-          // 저장
           await chrome.storage.local.set({
-            savedItems: updatedItems,
+            savedItems: remainingItems,
             urlGroups: updatedGroups,
           });
         } catch (error) {
-          console.error("그룹 삭제 오류:", error);
+          console.error("그룹 삭제 오류 (현재 사용자):", error);
           alert("그룹 삭제 중 오류가 발생했습니다.");
         }
       }
     },
-    [urlGroups]
+    [urlGroups, userEmail]
   );
 
-  // 아이템 삭제 처리
-  const handleDelete = useCallback(async (itemId: number) => {
-    try {
-      // 현재 데이터 가져오기
-      const currentData = await chrome.storage.local.get(["savedItems", "urlGroups"]);
-      const currentItems = (currentData.savedItems || []) as CapturedItem[];
-      const currentGroups = (currentData.urlGroups || []) as UrlGroup[];
+  // 아이템 삭제 처리 (현재 사용자의 아이템만)
+  const handleDelete = useCallback(
+    async (itemId: number) => {
+      if (!userEmail) {
+        alert("로그인 정보가 없어 아이템을 삭제할 수 없습니다.");
+        return;
+      }
+      try {
+        const currentData = await chrome.storage.local.get(["savedItems", "urlGroups"]);
+        const allItems = (currentData.savedItems || []) as CapturedItem[];
+        const allGroups = (currentData.urlGroups || []) as UrlGroup[];
 
-      // 삭제할 아이템 찾기
-      const itemToDelete = currentItems.find((item) => item.id === itemId);
-      if (!itemToDelete) return;
-
-      // 아이템 삭제
-      const updatedItems = currentItems.filter((item) => item.id !== itemId);
-
-      // 그룹 데이터 업데이트 - 그룹 정보 유지하면서 해당 아이템만 제거
-      const updatedGroups = currentGroups.map((group) => {
-        if (group.url === itemToDelete.pageUrl) {
-          return {
-            ...group,
-            items: group.items.filter((item) => item.id !== itemId),
-          };
+        const itemToDelete = allItems.find(
+          (item) => item.id === itemId && item.userEmail === userEmail
+        );
+        if (!itemToDelete) {
+          alert("삭제할 아이템을 찾을 수 없거나 다른 사용자의 아이템입니다.");
+          return;
         }
-        return group;
-      });
 
-      // 저장
-      await chrome.storage.local.set({
-        savedItems: updatedItems,
-        urlGroups: updatedGroups,
-      });
-    } catch (error) {
-      console.error("아이템 삭제 오류:", error);
-      alert("아이템 삭제 중 오류가 발생했습니다.");
-    }
-  }, []);
+        const updatedItems = allItems.filter(
+          (item) => item.id !== itemId || item.userEmail !== userEmail
+        );
+
+        const updatedGroups = allGroups
+          .map((group) => {
+            if (group.userEmail === userEmail && group.url === itemToDelete.pageUrl) {
+              return {
+                ...group,
+                items: group.items.filter((item) => item.id !== itemId),
+              };
+            }
+            return group;
+          })
+          .filter(
+            (group) => group.userEmail !== userEmail || group.items.length > 0 || group.summaryId
+          ); // 요약/문제 있는 빈 그룹은 유지 가능
+
+        await chrome.storage.local.set({
+          savedItems: updatedItems,
+          urlGroups: updatedGroups,
+        });
+      } catch (error) {
+        console.error("아이템 삭제 오류 (현재 사용자):", error);
+        alert("아이템 삭제 중 오류가 발생했습니다.");
+      }
+    },
+    [userEmail]
+  );
 
   // 아이템 다운로드 처리
   const handleDownload = useCallback(async (item: CapturedItem) => {
@@ -166,38 +205,47 @@ export function useHistoryItems(urlGroups: UrlGroup[]) {
     }
   }, []);
 
-  // 아이템 수정 처리
-  const handleEdit = useCallback(async (item: CapturedItem, newContent: string) => {
-    try {
-      // 현재 데이터 가져오기
-      const currentData = await chrome.storage.local.get(["savedItems", "urlGroups"]);
-      const currentItems = (currentData.savedItems || []) as CapturedItem[];
-      const currentGroups = (currentData.urlGroups || []) as UrlGroup[];
+  // 아이템 수정 처리 (현재 사용자의 아이템만)
+  const handleEdit = useCallback(
+    async (itemToEdit: CapturedItem, newContent: string) => {
+      if (!userEmail || itemToEdit.userEmail !== userEmail) {
+        alert("수정 권한이 없거나 다른 사용자의 아이템입니다.");
+        return;
+      }
+      try {
+        const currentData = await chrome.storage.local.get(["savedItems", "urlGroups"]);
+        const allItems = (currentData.savedItems || []) as CapturedItem[];
+        const allGroups = (currentData.urlGroups || []) as UrlGroup[];
 
-      // 아이템 수정
-      const updatedItems = currentItems.map((savedItem) =>
-        savedItem.id === item.id ? { ...savedItem, content: newContent } : savedItem
-      );
-
-      // 그룹 내 아이템 수정
-      const updatedGroups = currentGroups.map((group) => {
-        const updatedGroupItems = group.items.map((groupItem) =>
-          groupItem.id === item.id ? { ...groupItem, content: newContent } : groupItem
+        const updatedItems = allItems.map((savedItem) =>
+          savedItem.id === itemToEdit.id && savedItem.userEmail === userEmail
+            ? { ...savedItem, content: newContent, userEmail }
+            : savedItem
         );
 
-        return { ...group, items: updatedGroupItems };
-      });
+        const updatedGroups = allGroups.map((group) => {
+          if (group.userEmail === userEmail && group.url === itemToEdit.pageUrl) {
+            const updatedGroupItems = group.items.map((groupItem) =>
+              groupItem.id === itemToEdit.id
+                ? { ...groupItem, content: newContent, userEmail }
+                : groupItem
+            );
+            return { ...group, items: updatedGroupItems, userEmail };
+          }
+          return group;
+        });
 
-      // 저장
-      await chrome.storage.local.set({
-        savedItems: updatedItems,
-        urlGroups: updatedGroups,
-      });
-    } catch (error) {
-      console.error("아이템 수정 오류:", error);
-      alert("아이템 수정 중 오류가 발생했습니다.");
-    }
-  }, []);
+        await chrome.storage.local.set({
+          savedItems: updatedItems,
+          urlGroups: updatedGroups,
+        });
+      } catch (error) {
+        console.error("아이템 수정 오류 (현재 사용자):", error);
+        alert("아이템 수정 중 오류가 발생했습니다.");
+      }
+    },
+    [userEmail]
+  );
 
   return {
     handleDeleteAll,

@@ -17,7 +17,7 @@ import {
 } from "../hooks/history";
 
 export default function History() {
-  const { isAuthenticated, authLoading, login } = useAuth();
+  const { isAuthenticated, authLoading, login, userEmail } = useAuth();
 
   // URL 그룹 관련 훅
   const {
@@ -30,7 +30,7 @@ export default function History() {
     setSearchTerm,
     getFilteredItemsInGroup,
     filteredGroups,
-  } = useUrlGroups();
+  } = useUrlGroups(userEmail);
 
   // UI 상태 관리 훅
   const {
@@ -53,13 +53,13 @@ export default function History() {
 
   // 아이템 CRUD 관련 훅
   const { handleDeleteAll, handleDeleteUrlGroup, handleDelete, handleDownload, handleEdit } =
-    useHistoryItems(urlGroups);
+    useHistoryItems(urlGroups, userEmail);
 
   // 요약 관련 훅
-  const { handleSummaryModalSubmit } = useSummary(setUrlGroups, setSummarizingUrls);
+  const { handleSummaryModalSubmit } = useSummary(setUrlGroups, setSummarizingUrls, userEmail);
 
   // 문제 생성 관련 훅
-  const { handleProblemModalSubmit } = useProblemCreation(setUrlGroups, setCreatingProblemsUrls);
+  const { handleProblemModalSubmit } = useProblemCreation(setCreatingProblemsUrls, userEmail);
 
   // 인증 로딩 중
   if (authLoading) {
@@ -125,15 +125,15 @@ export default function History() {
             {urlGroups.length > 0 && (
               <>
                 <button
-                  className="flex flex-col text-xs w-14 h-13 px-1 rounded border bg-main/70 border-blue-600 text-white hover:bg-blue-700/70 transition-all flex items-center justify-center"
-                  onClick={() => window.open("https://memozy.site/collection")}
+                  className="flex flex-col w-15 h-13 px-1 rounded border bg-main/70 border-blue-600 text-white hover:bg-blue-700/70 transition-all flex items-center justify-center"
+                  onClick={() => window.open("https://memozy.site/")}
                   title="웹으로 이동"
                 >
                   <span className="text-lg">🌐</span>
-                  <span className="text-sm">웹으로</span>
+                  <span className="text-sm">웹페이지</span>
                 </button>
                 <button
-                  className="flex flex-col w-15 h-13 px-1 rounded border bg-warning/70 border-warning text-black hover:text-white hover:bg-warning-dark/70 hover:border-warning-dark transition-all flex items-center justify-center"
+                  className="flex flex-col w-15 h-13 px-1 rounded border bg-warning/50 border-warning text-black hover:text-white hover:bg-warning-dark/70 hover:border-warning-dark transition-all flex items-center justify-center"
                   onClick={handleDeleteAll}
                   title="모든 기록 삭제"
                 >

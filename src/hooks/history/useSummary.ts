@@ -5,7 +5,8 @@ import { useAuth } from "../useAuth";
 
 export function useSummary(
   setUrlGroups: (groups: UrlGroup[]) => void,
-  setSummarizingUrls: React.Dispatch<React.SetStateAction<{ [url: string]: boolean }>>
+  setSummarizingUrls: React.Dispatch<React.SetStateAction<{ [url: string]: boolean }>>,
+  userEmail: string | null
 ) {
   const navigate = useNavigate();
   const { authToken } = useAuth();
@@ -15,6 +16,11 @@ export function useSummary(
     (group: UrlGroup, getFilteredItemsInGroup: (group: UrlGroup) => CapturedItem[]) => {
       if (!authToken) {
         alert("인증 토큰이 없습니다. 다시 로그인해주세요.");
+        return;
+      }
+
+      if (userEmail && group.userEmail !== userEmail) {
+        alert("다른 사용자의 그룹에 대한 요약을 생성할 수 없습니다.");
         return;
       }
 
@@ -40,7 +46,7 @@ export function useSummary(
         groupInfo: { url: group.url, title: group.title },
       };
     },
-    [authToken, navigate]
+    [authToken, navigate, userEmail]
   );
 
   // 요약 모달 제출 처리 함수
@@ -56,6 +62,11 @@ export function useSummary(
         return;
       }
 
+      if (!userEmail) {
+        alert("로그인 정보가 없어 요약을 저장할 수 없습니다.");
+        return;
+      }
+
       const pageUrl = selectedGroupInfo.url;
       setSummarizingUrls((prev) => ({ ...prev, [pageUrl]: true }));
 
@@ -66,7 +77,7 @@ export function useSummary(
 
         // 그룹 데이터 업데이트
         const updatedGroups = currentGroups.map((group) => {
-          if (group.url === pageUrl) {
+          if (group.url === pageUrl && group.userEmail === userEmail) {
             // 현재 URL 그룹 업데이트
             return {
               ...group,
@@ -83,7 +94,7 @@ export function useSummary(
         });
 
         // 컴포넌트 상태 업데이트
-        setUrlGroups(updatedGroups);
+        setUrlGroups(updatedGroups.filter((g) => g.userEmail === userEmail));
       } catch (error) {
         console.error("요약 생성 오류:", error);
         alert("요약 생성 중 오류가 발생했습니다.");
@@ -91,7 +102,7 @@ export function useSummary(
         setSummarizingUrls((prev) => ({ ...prev, [pageUrl]: false }));
       }
     },
-    [setSummarizingUrls, setUrlGroups]
+    [setSummarizingUrls, setUrlGroups, userEmail]
   );
 
   return {

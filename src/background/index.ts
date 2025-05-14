@@ -2,6 +2,20 @@ import { DiffDOM } from "diff-dom";
 import * as htmlparser from "htmlparser2";
 import { CapturedItem, MergeAction, Message, Response, ImageContent, UrlGroup } from "../types";
 import { Node as HtmlParserNode, DataNode, Element as HtmlParserElement } from "domhandler";
+import api from "../hooks/useApi"; // API 호출을 위해 추가 (경로 및 사용 가능성 확인 필요)
+
+// 이메일과 토큰을 저장하는 키 상수 (useAuth.ts와 동일하게)
+const AUTH_TOKEN_KEY = "google_auth_token";
+const USER_EMAIL_KEY = "user_email";
+
+// JWT 토큰 디코딩 함수
+function parseJwt(token: string) {
+  try {
+    return JSON.parse(atob(token.split(".")[1]));
+  } catch (e) {
+    return null;
+  }
+}
 
 // diff-dom 타입 직접 정의 (간소화 버전)
 interface VNode {
@@ -240,15 +254,19 @@ function mergeContent(
 }
 
 // 아이템을 URL 그룹에 업데이트하는 함수
-function updateUrlGroups(newItem: CapturedItem): Promise<void> {
+function updateUrlGroups(newItem: CapturedItem, userEmail: string | null): Promise<void> {
   return new Promise(async (resolve, reject) => {
     try {
       // 현재 저장된 데이터 가져오기
       const result = await chrome.storage.local.get(["urlGroups"]);
-      const currentGroups = (result.urlGroups || []) as UrlGroup[];
+      let currentGroups = (result.urlGroups || []) as UrlGroup[];
 
-      // 해당 URL의 그룹 찾기
-      const groupIndex = currentGroups.findIndex((group) => group.url === newItem.pageUrl);
+      // 현재 사용자의 그룹만 필터링 (또는 모든 그룹을 다루되, newItem.userEmail을 기준으로 작업)
+      // 여기서는 모든 그룹을 다루고, newItem.userEmail과 일치하는 그룹을 찾거나 새로 만듭니다.
+
+      const groupIndex = currentGroups.findIndex(
+        (group) => group.url === newItem.pageUrl && group.userEmail === userEmail
+      );
 
       if (groupIndex >= 0) {
         // 기존 그룹이 있는 경우 업데이트
@@ -276,6 +294,8 @@ function updateUrlGroups(newItem: CapturedItem): Promise<void> {
         if (!group.favicon && newItem.meta?.favicon) {
           group.favicon = newItem.meta.favicon;
         }
+        // userEmail은 이미 그룹 생성/필터링 시점에 일치해야 함
+        group.userEmail = userEmail || undefined;
 
         // 업데이트된 그룹 저장
         updatedGroups[groupIndex] = group;
@@ -288,14 +308,16 @@ function updateUrlGroups(newItem: CapturedItem): Promise<void> {
           favicon: newItem.meta?.favicon,
           timestamp: newItem.timestamp,
           items: [newItem],
+          userEmail: userEmail || undefined, // 새 그룹에 userEmail 추가
           // 요약 및 문제 정보는 기본값으로
           summaryId: undefined,
           summaryContent: undefined,
           summaryType: undefined,
           problemId: undefined,
         };
-
-        await chrome.storage.local.set({ urlGroups: [...currentGroups, newGroup] });
+        // 다른 사용자의 그룹은 그대로 두고 새 그룹 추가
+        currentGroups.push(newGroup);
+        await chrome.storage.local.set({ urlGroups: currentGroups });
       }
 
       resolve();
@@ -320,6 +342,35 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
       if (message.action === "contentCaptured") {
         console.log("콘텐츠 캡처됨:", message.type);
 
+        // 사용자 이메일 가져오기 (로컬 스토리지에서)
+        let userEmail: string | null = null;
+        try {
+          const result = await chrome.storage.local.get([AUTH_TOKEN_KEY, USER_EMAIL_KEY]);
+          userEmail = result[USER_EMAIL_KEY] || null;
+
+          // 이메일이 없고 토큰이 있는 경우, 토큰에서 이메일 추출 시도
+          if (!userEmail && result[AUTH_TOKEN_KEY]) {
+            const token = result[AUTH_TOKEN_KEY];
+            const decodedToken = parseJwt(token);
+            if (decodedToken && decodedToken.email) {
+              userEmail = decodedToken.email;
+              console.log("토큰에서 이메일 추출 (백그라운드):", userEmail);
+
+              // 추출한 이메일을 스토리지에 저장 (향후 사용을 위해)
+              await chrome.storage.local.set({ [USER_EMAIL_KEY]: userEmail });
+            }
+          }
+
+          if (userEmail) {
+            console.log("현재 사용자 이메일 (백그라운드):", userEmail);
+          } else {
+            console.warn("로그인된 사용자 이메일을 찾을 수 없습니다. 익명으로 저장됩니다.");
+          }
+        } catch (error) {
+          console.error("사용자 정보 가져오기 중 예외 발생 (백그라운드):", error);
+          // 필요시 오류 처리, 여기서는 null로 계속 진행
+        }
+
         const pageUrl = sender.tab?.url || "";
         const pageTitle = sender.tab?.title || "";
 
@@ -343,22 +394,30 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
           pageTitle,
           timestamp: new Date().toISOString(),
           meta: message.meta || {},
+          userEmail: userEmail || undefined, // userEmail 추가
         };
+
+        console.log("새 아이템 생성 (userEmail 포함):", {
+          id: newItem.id,
+          type: newItem.type,
+          userEmail: newItem.userEmail,
+        });
 
         // DOM 경로 비교를 통한 중복 확인 및 병합
         if (message.type === "text" && typeof message.content === "string") {
-          const existingItems = savedItems.filter(
-            (item) => item.pageUrl === pageUrl && item.type === "text"
+          // 현재 사용자의 아이템만 필터링하여 중복 검사
+          const userSpecificItems = savedItems.filter(
+            (item) =>
+              item.pageUrl === pageUrl && item.type === "text" && item.userEmail === userEmail
           );
 
-          if (existingItems.length > 0) {
-            // 내용이 완전히 동일한 아이템 확인
-            const exactDuplicate = existingItems.find(
+          if (userSpecificItems.length > 0) {
+            const exactDuplicate = userSpecificItems.find(
               (item) => typeof item.content === "string" && item.content === message.content
             );
 
             if (exactDuplicate) {
-              console.log("정확히 동일한 콘텐츠 발견, 중복 저장 방지");
+              console.log("정확히 동일한 콘텐츠 발견 (현재 사용자), 중복 저장 방지");
               sendResponse({
                 success: true,
                 status: "skipped_duplicate",
@@ -367,20 +426,16 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
               return;
             }
 
-            // DOM 경로 기반 병합 가능한 아이템 확인
-            const itemsWithDomPath = existingItems.filter(
+            const itemsWithDomPath = userSpecificItems.filter(
               (item) => item.meta?.domPath && typeof item.content === "string"
             );
 
             if (itemsWithDomPath.length > 0 && message.meta?.domPath) {
               for (const existingItem of itemsWithDomPath) {
                 if (existingItem.meta?.domPath) {
-                  // html 콘텐츠 비교 (diff 계산)
                   const existingVNodes = parseHtmlToVNodes(existingItem.content as string);
                   const newVNodes = parseHtmlToVNodes(message.content as string);
                   const diff = dd.diff(existingVNodes as any, newVNodes as any);
-
-                  // 병합 전략 결정
                   const mergeAction = determineMergeStrategy(
                     message.meta.domPath,
                     existingItem.meta.domPath,
@@ -393,23 +448,20 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
                     console.log(
                       `병합 전략 결정: ${mergeAction}, ID: ${existingItem.id}`,
                       `기존 경로: ${existingItem.meta.domPath}`,
-                      `새 경로: ${message.meta.domPath}`
+                      `새 경로: ${message.meta.domPath}`,
+                      `사용자: ${userEmail}`
                     );
-
-                    // 아이템 병합
                     const mergedItem = mergeContent(newItem, existingItem, mergeAction);
+                    mergedItem.userEmail = userEmail || undefined; // 병합된 아이템에도 userEmail 보장
 
-                    // 저장된 아이템 업데이트
                     const updatedItems = savedItems.map((item) =>
-                      item.id === existingItem.id ? mergedItem : item
+                      item.id === existingItem.id && item.userEmail === userEmail
+                        ? mergedItem
+                        : item
                     );
-
                     await chrome.storage.local.set({ savedItems: updatedItems });
+                    await updateUrlGroups(mergedItem, userEmail); // userEmail 전달
 
-                    // URL 그룹 업데이트
-                    await updateUrlGroups(mergedItem);
-
-                    // 탭에 알림 전송
                     try {
                       if (sender.tab?.id) {
                         chrome.tabs.sendMessage(sender.tab.id, {
@@ -420,7 +472,6 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
                     } catch (notificationError) {
                       console.error("알림 전송 오류:", notificationError);
                     }
-
                     sendResponse({
                       success: true,
                       status: "item_updated",
@@ -434,13 +485,16 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
           }
         }
 
-        // 새 아이템 저장
+        // 새 아이템 저장 (다른 사용자 아이템은 건드리지 않음)
+        // savedItems에는 모든 사용자의 아이템이 있을 수 있으므로, 현재 사용자의 아이템만 필터링 후 추가하거나
+        // 또는 newItem에 userEmail이 있으므로 그냥 추가해도 useUrlGroups에서 필터링됨.
+        // 여기서는 그냥 추가하고, 불러올 때 필터링하는 방식 유지.
         await chrome.storage.local.set({
           savedItems: [...savedItems, newItem],
         });
 
         // URL 그룹 업데이트
-        await updateUrlGroups(newItem);
+        await updateUrlGroups(newItem, userEmail); // userEmail 전달
 
         // 탭에 알림 전송 (캡처 완료)
         try {
@@ -592,16 +646,113 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
         }
         return true; // 비동기 sendResponse를 위해 true 반환
       }
+
+      if (message.action === "createProblemRequest") {
+        console.log("문제 생성 요청 수신 (백그라운드):", message);
+        const {
+          summaryId,
+          quizCount,
+          quizTypes,
+          userEmail,
+          authToken,
+          pageUrl: requestPageUrl,
+        } = message;
+
+        if (!summaryId || !quizCount || !quizTypes || !userEmail || !authToken || !requestPageUrl) {
+          sendResponse({ success: false, error: "문제 생성 요청에 필요한 정보 부족" });
+          return;
+        }
+
+        try {
+          // API 호출 (api 객체가 백그라운드에서 사용 가능해야 함)
+          // 백그라운드에서는 useAuth() 훅을 직접 사용할 수 없으므로 authToken을 메시지로 받아야 함.
+          // useApi.ts의 setAuthToken을 백그라운드에서 직접 호출하거나, API 요청 시 헤더에 토큰을 직접 설정해야 함.
+          // 여기서는 직접 헤더에 설정하는 방식을 가정합니다.
+          const apiConfig = authToken ? { headers: { Authorization: `Bearer ${authToken}` } } : {};
+
+          console.log(`API 요청: /quiz/${summaryId}`, { quizCount, quizTypes }, apiConfig);
+
+          const { data: result } = await api.post(
+            `/quiz/${summaryId}`,
+            {
+              quizCount: quizCount,
+              quizTypes: quizTypes,
+            },
+            apiConfig
+          );
+
+          console.log("문제 생성 API 응답:", result);
+
+          if (result.success) {
+            const problemId = summaryId; // 현재 로직에서는 summaryId가 problemId로 사용됨
+
+            const storageResult = await chrome.storage.local.get(["urlGroups"]);
+            const currentGroups = (storageResult.urlGroups || []) as UrlGroup[];
+
+            let updatedGroup: UrlGroup | undefined = undefined;
+            const updatedGroups = currentGroups.map((group) => {
+              if (
+                group.url === requestPageUrl &&
+                group.userEmail === userEmail &&
+                group.summaryId === summaryId
+              ) {
+                updatedGroup = { ...group, problemId: problemId };
+                return updatedGroup;
+              }
+              return group;
+            });
+
+            if (updatedGroup) {
+              await chrome.storage.local.set({ urlGroups: updatedGroups });
+              console.log(
+                "ProblemId 업데이트 및 저장 완료:",
+                problemId,
+                "for group:",
+                requestPageUrl
+              );
+              sendResponse({
+                success: true,
+                status: "problem_created",
+                problemId: problemId,
+                updatedGroup: updatedGroup,
+              });
+            } else {
+              console.error("ProblemId를 업데이트할 해당 그룹을 찾지 못함");
+              sendResponse({
+                success: false,
+                error: "ProblemId를 업데이트할 그룹을 찾지 못했습니다.",
+              });
+            }
+          } else {
+            sendResponse({
+              success: false,
+              error: result.errorMsg || "API에서 문제 생성 실패",
+              errorCode: result.errorCode,
+            });
+          }
+        } catch (error: any) {
+          console.error("문제 생성 API 호출 또는 스토리지 업데이트 오류:", error);
+          sendResponse({
+            success: false,
+            error: error.message || "문제 생성 중 백그라운드 오류 발생",
+          });
+        }
+        return; // 비동기 처리가 완료되었으므로 여기서 반환
+      }
     } catch (error: any) {
-      console.error("오류:", error.message || error);
-      sendResponse({
-        success: false,
-        error: error.message || "알 수 없는 오류가 발생했습니다.",
-      });
+      console.error("백그라운드 메시지 핸들러 오류:", error.message || error);
+      // 이미 sendResponse가 호출되었을 수 있으므로, 안전하게 처리
+      // 이 catch는 최상위 async 함수의 오류를 잡기 위함
+      if (!sender.tab) {
+        // 팝업 등에서의 요청일 수 있으므로 체크
+        try {
+          sendResponse({ success: false, error: error.message || "알 수 없는 백그라운드 오류" });
+        } catch (e) {}
+      }
     }
   })();
 
-  return true; // 비동기 응답을 위해 true 반환
+  return true; // 비동기 sendResponse를 위해 항상 true 반환
 });
 
 // 확장 프로그램 설치/업데이트 시 실행

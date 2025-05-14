@@ -40,6 +40,7 @@ export interface CapturedItem {
   pageTitle: string;
   pageUrl: string;
   timestamp: Date | string;
+  userEmail?: string;
   meta?: {
     originalType?: string;
     saveType?: string;
@@ -61,6 +62,7 @@ export interface UrlGroup {
   problemId?: number;
   items: CapturedItem[];
   isSubmitted?: boolean;
+  userEmail?: string;
 }
 
 // 알림 인터페이스
@@ -88,7 +90,8 @@ export type MessageAction =
   | "downloadItem"
   | "extractContent"
   | "fetchIframeContent"
-  | "generateAiSummary";
+  | "generateAiSummary"
+  | "createProblemRequest";
 
 // 메시지 인터페이스
 export interface Message {
@@ -100,21 +103,30 @@ export interface Message {
   isCapturing?: boolean;
   isHtmlMode?: boolean;
   itemId?: number; // 콘텐츠 추출을 위한 아이템 ID
-  url?: string; // iframe URL을 위한 속성
+  url?: string; // iframe URL을 위한 속성 (pageUrl과 용도 구분 필요 시 이름 변경 고려)
   favicon?: string;
   markdownContent?: string; // 아이템 다운로드 시 마크다운 콘텐츠
+  summaryId?: number;
+  quizCount?: number;
+  quizTypes?: string[];
+  userEmail?: string;
+  authToken?: string;
+  pageUrl?: string; // 문제 생성 요청 시, 어떤 페이지의 그룹에 대한 요청인지 식별하기 위함
 }
 
 // 응답 인터페이스
 export interface Response {
   success: boolean;
   error?: string;
+  errorCode?: string; // API 에러 코드 등을 전달하기 위함
   itemId?: number;
   downloadId?: number;
   extractedContent?: any;
   html?: string;
-  status?: "ok" | "skipped_duplicate" | "item_updated" | "error";
+  status?: "ok" | "skipped_duplicate" | "item_updated" | "error" | "problem_created";
   message?: string;
+  problemId?: number;
+  updatedGroup?: UrlGroup;
 }
 
 // 스토리지 상태 인터페이스

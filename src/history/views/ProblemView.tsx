@@ -5,6 +5,7 @@ import { useApiQuery, useApiMutation } from "../../hooks/useApi";
 import { UrlGroup } from "../../types";
 import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from "@headlessui/react";
 import NewProblemModal from "../features/problemView/NewProblemModal";
+import { useAuth } from "../../hooks/useAuth";
 
 export interface Quiz {
   quizId: number;
@@ -43,6 +44,7 @@ interface CollectionResponse {
 export default function ProblemView() {
   const { problemId } = useParams();
   const navigate = useNavigate();
+  const { userEmail } = useAuth();
   const [quizSource, setQuizSource] = useState<UrlGroup | null>(null);
   const numericProblemId = parseInt(problemId as string, 10);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -71,11 +73,13 @@ export default function ProblemView() {
     {
       onSuccess: (data) => {
         if (data.success) {
-          // 성공 시 storage 업데이트
+          // 성공 시 storage 업데이트, 현재 사용자의 그룹만 업데이트
           chrome.storage.local.get(["urlGroups"]).then((result) => {
             const urlGroups = result.urlGroups || [];
             const updatedUrlGroups = urlGroups.map((group: UrlGroup) => {
-              if (group.problemId === numericProblemId) {
+              // 문제 ID와 사용자 이메일이 모두 일치하는 경우에만 업데이트
+              if (group.problemId === numericProblemId && group.userEmail === userEmail) {
+                console.log(`그룹 업데이트: problemId=${numericProblemId}, userEmail=${userEmail}`);
                 return {
                   ...group,
                   items: [], // items를 비움

@@ -85,14 +85,15 @@ export default function CreateProblemModal({ isOpen, onClose, onSubmit }: Create
               </button>
               <button
                 type="button"
-                // disabled={true}
-                // title="추후 업데이트 예정입니다."
-                onClick={() => handleQuestionTypeChange("단답형")}
-                className={`px-3 py-1 rounded border disabled:opacity-50 ${
-                  quizTypes.includes("단답형")
-                    ? "bg-blue-500 text-white border-blue-500"
-                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
-                }`}
+                disabled={true}
+                title="추후 업데이트 예정입니다."
+                className={`px-3 py-1 rounded border disabled:opacity-50`}
+                // onClick={() => handleQuestionTypeChange("단답형")}
+                //   ${
+                //     quizTypes.includes("단답형")
+                //       ? "bg-blue-500 text-white border-blue-500"
+                //       : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                //   }`}
               >
                 단답형
               </button>

@@ -8,8 +8,6 @@ type NotificationMessage = {
   message: string;
 };
 
-console.log("드래그 & 저장 콘텐츠 스크립트 로드됨");
-
 // 페이지에 스크립트가 로드되었음을 알림
 document.addEventListener("DOMContentLoaded", () => {
   // 초기 로드 시 5회 시도
@@ -26,8 +24,6 @@ document.addEventListener("DOMContentLoaded", () => {
           console.log(`콘텐츠 스크립트 준비 메시지 재시도 (${retryCount}/${maxRetries})...`);
           setTimeout(sendReadyMessage, retryInterval);
         }
-      } else {
-        console.log("콘텐츠 스크립트 준비 상태 전송됨");
       }
     });
   };
@@ -39,10 +35,8 @@ document.addEventListener("DOMContentLoaded", () => {
 // 안전한 메시지 전송 함수
 const sendMessageToBackground = (message: Message): Promise<ExtensionResponse> => {
   return new Promise((resolve, reject) => {
-    console.log("[Content Script] sendMessageToBackground 호출됨:", message.action);
     try {
       chrome.runtime.sendMessage(message, (response: ExtensionResponse | undefined) => {
-        console.log("[Content Script] sendMessage 콜백 실행됨:", message.action, response);
         if (chrome.runtime.lastError) {
           console.error("[Content Script] 메시지 전송 오류:", chrome.runtime.lastError.message);
           reject(chrome.runtime.lastError);
@@ -53,11 +47,9 @@ const sendMessageToBackground = (message: Message): Promise<ExtensionResponse> =
           console.error("[Content Script] 메시지 응답 실패:", response.error);
           reject(new Error(response.error || "알 수 없는 오류"));
         } else {
-          console.log("[Content Script] 메시지 응답 성공:", response);
           resolve(response);
         }
       });
-      console.log("[Content Script] chrome.runtime.sendMessage 호출 완료 (비동기 콜백 대기)");
     } catch (error) {
       console.error("[Content Script] 메시지 전송 중 예외 발생:", error);
       reject(error);
@@ -73,22 +65,17 @@ let lastCapturedContent: string | null = null;
 // 확장 설정 상태 초기화
 chrome.storage.local.get(["isCapturing"], (result) => {
   isCapturing = result.isCapturing || false;
-  console.log(`초기 캡처 상태: ${isCapturing ? "활성화" : "비활성화"}`);
-  console.log(`HTML 모드: 항상 활성화`);
 });
 
 // 스토리지 변경 감지
 chrome.storage.onChanged.addListener((changes) => {
   if (changes.isCapturing) {
     isCapturing = changes.isCapturing.newValue;
-    console.log(`캡처 상태 변경: ${isCapturing ? "활성화" : "비활성화"}`);
   }
 });
 
 // 메시지 리스너
 chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) => {
-  console.log("메시지 수신됨:", message.action);
-
   // 캡처 상태 변경 메시지
   if (
     message.action === "toggleCapturing" ||
@@ -96,7 +83,6 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
     message.action === "stopCapture"
   ) {
     isCapturing = message.isCapturing !== undefined ? message.isCapturing : !isCapturing;
-    console.log(`캡처 모드: ${isCapturing ? "활성화" : "비활성화"}`);
     sendResponse({ success: true, received: true });
     return true;
   }
@@ -106,8 +92,6 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
     if (message.isCapturing !== undefined) {
       isCapturing = message.isCapturing;
     }
-    console.log(`HTML 모드: 항상 활성화`);
-    console.log(`캡처 모드: ${isCapturing ? "활성화" : "비활성화"}`);
     sendResponse({ success: true, received: true });
     return true;
   }
@@ -115,7 +99,6 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
   // 전체 HTML 저장 메시지
   if (message.action === "saveFullHtml") {
     try {
-      console.log("전체 HTML 저장 요청됨");
       // 현재 페이지 HTML만 저장
       savePageHtml()
         .then((result) => {
