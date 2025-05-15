@@ -103,7 +103,6 @@ function parseHtmlToVNodes(htmlString: string): (VNode | VText)[] {
 // 30초마다 ping 실행하여 활성 상태 유지
 const keepAlive = () => {
   setInterval(() => {
-    console.log("Background service worker ping: " + new Date().toLocaleTimeString());
     // 10분마다 모든 탭에 서비스 워커 활성 상태 확인 메시지 전송
     chrome.tabs.query({}, (tabs) => {
       tabs.forEach((tab) => {
@@ -340,8 +339,6 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
     try {
       // 콘텐츠 캡처 메시지 처리
       if (message.action === "contentCaptured") {
-        console.log("콘텐츠 캡처됨:", message.type);
-
         // 사용자 이메일 가져오기 (로컬 스토리지에서)
         let userEmail: string | null = null;
         try {
@@ -390,18 +387,13 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
           id: Date.now(),
           type: message.type || "text", // 기본값 제공
           content: message.content || "", // 기본값 제공
+          markdownContent: message.markdownContent || "", // 마크다운 콘텐츠 추가
           pageUrl,
           pageTitle,
           timestamp: new Date().toISOString(),
           meta: message.meta || {},
           userEmail: userEmail || undefined, // userEmail 추가
         };
-
-        console.log("새 아이템 생성 (userEmail 포함):", {
-          id: newItem.id,
-          type: newItem.type,
-          userEmail: newItem.userEmail,
-        });
 
         // DOM 경로 비교를 통한 중복 확인 및 병합
         if (message.type === "text" && typeof message.content === "string") {
@@ -453,6 +445,22 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
                     );
                     const mergedItem = mergeContent(newItem, existingItem, mergeAction);
                     mergedItem.userEmail = userEmail || undefined; // 병합된 아이템에도 userEmail 보장
+
+                    // 마크다운 콘텐츠 병합 처리
+                    if (
+                      message.markdownContent &&
+                      typeof existingItem.markdownContent === "string"
+                    ) {
+                      if (mergeAction === "append") {
+                        mergedItem.markdownContent = `${existingItem.markdownContent || ""}\n\n${message.markdownContent}`;
+                      } else if (mergeAction === "prepend") {
+                        mergedItem.markdownContent = `${message.markdownContent}\n\n${existingItem.markdownContent || ""}`;
+                      } else if (mergeAction === "replace") {
+                        mergedItem.markdownContent = message.markdownContent;
+                      }
+                    } else {
+                      mergedItem.markdownContent = message.markdownContent || "";
+                    }
 
                     const updatedItems = savedItems.map((item) =>
                       item.id === existingItem.id && item.userEmail === userEmail

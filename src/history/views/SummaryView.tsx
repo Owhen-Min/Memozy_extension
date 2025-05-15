@@ -64,6 +64,7 @@ export default function SummaryView() {
         id: Date.now(),
         type: "text",
         content: summary.summaryContent || "",
+        markdownContent: summary.summaryContent || "",
         pageTitle: summary.title,
         pageUrl: summary.url,
         timestamp: summary.timestamp,

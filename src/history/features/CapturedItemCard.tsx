@@ -25,9 +25,6 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
   );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Instantiate TurndownService within the component or globally if preferred
-  const turndownService = customTurndown();
-
   useEffect(() => {
     // 컴포넌트 마운트 시 부모 그룹 컨테이너 찾기
     if (cardRef.current) {
@@ -87,20 +84,24 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
   // 내용 렌더링
   const renderContent = () => {
     switch (item.type) {
-      case "text":
+      case "text": {
         let markdownContent = "";
-        if (typeof item.content === "string") {
-          try {
-            // Convert HTML content to Markdown on the fly
-            markdownContent = turndownService.turndown(item.content);
-          } catch (error) {
-            console.error("Error converting HTML to Markdown in Card:", error);
-            // Fallback: Display raw HTML within a code block or similar
-            // For simplicity, just show an error message or the raw HTML
-            markdownContent = `\`\`\`html\n${item.content}\n\`\`\``; // Show raw HTML in code block as fallback
-          }
+        if (item.markdownContent) {
+          markdownContent = item.markdownContent;
         } else {
-          markdownContent = "콘텐츠 형식이 올바르지 않습니다.";
+          if (typeof item.content === "string") {
+            try {
+              // Convert HTML content to Markdown on the fly
+              markdownContent = customTurndown().turndown(item.content);
+            } catch (error) {
+              console.error("Error converting HTML to Markdown in Card:", error);
+              // Fallback: Display raw HTML within a code block or similar
+              // For simplicity, just show an error message or the raw HTML
+              markdownContent = `\`\`\`html\n${item.content}\n\`\`\``; // Show raw HTML in code block as fallback
+            }
+          } else {
+            markdownContent = "콘텐츠 형식이 올바르지 않습니다.";
+          }
         }
 
         return (
@@ -110,7 +111,7 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
             </div>
           </div>
         );
-
+      }
       case "image":
         const imgContent = item.content as ImageContent;
         return (

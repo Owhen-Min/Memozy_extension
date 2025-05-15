@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import CustomReactMarkdown from "../../lib/react-markdown/CustomReactMarkdown";
-import { useApiMutation } from "../../hooks/useApi";
+import { useApiQuery, useApiMutation } from "../../hooks/useApi";
 import { SummarySourceRequest, SummarySourceResponse } from "../../types/summary";
 
 interface SummaryComparisonModalProps {
@@ -22,6 +22,7 @@ export default function SummaryComparisonModal({
 }: SummaryComparisonModalProps) {
   const [aiSummary, setAiSummary] = useState<string>("");
   const [selectedType, setSelectedType] = useState<"markdown" | "ai">("markdown");
+  const [savedSourceId, setSavedSourceId] = useState<string>("");
 
   // API mutation 설정
   const { mutate: generateSummary, isPending: isLoading } = useApiMutation<
@@ -40,6 +41,27 @@ export default function SummaryComparisonModal({
     },
   });
 
+  // 기존 요약 가져오기
+  const { refetch: fetchExistingSummary } = useApiQuery<SummarySourceResponse>(
+    ["quiz-source", savedSourceId],
+    `/quiz-source/summary/${savedSourceId}`,
+    {
+      enabled: false, // 자동 실행하지 않고 수동으로 제어
+    }
+  );
+
+  // savedSourceId가 변경될 때 요약 가져오기
+  useEffect(() => {
+    if (savedSourceId) {
+      fetchExistingSummary().then((result) => {
+        if (result.data?.data) {
+          onSubmit(result.data.data, "markdown", savedSourceId);
+          window.alert("기존에 저장된 요약이 있습니다. 해당 요약을 불러옵니다.");
+        }
+      });
+    }
+  }, [savedSourceId, fetchExistingSummary]);
+
   // 저장 API mutation 설정
   const { mutate: saveSummary, isPending: isSaving } = useApiMutation<
     { success: boolean; data: string; errorMsg: string; errorCode: string },
@@ -53,7 +75,17 @@ export default function SummaryComparisonModal({
           response.data
         );
       } else {
-        window.alert(response.errorMsg);
+        if (response.errorCode === "QUIZ_SOURCE400") {
+          if (response.errorMsg) {
+            // sourceId 추출
+            setSavedSourceId(response.errorMsg);
+            // fetchExistingSummary는 useEffect에서 자동으로 호출됨
+          } else {
+            window.alert("저장된 요약의 ID를 찾을 수 없습니다.");
+          }
+        } else {
+          window.alert(response.errorMsg);
+        }
       }
     },
     onError: (error) => {

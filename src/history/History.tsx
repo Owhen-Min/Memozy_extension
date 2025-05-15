@@ -174,7 +174,7 @@ export default function History() {
       </header>
 
       <div className="flex-1 overflow-y-auto">
-        {filteredGroups.map((group) => {
+        {filteredGroups.map((group: any) => {
           const filteredItems = getFilteredItemsInGroup(group);
           if (filteredItems.length === 0) return null;
 
@@ -300,7 +300,7 @@ export default function History() {
               {expandedGroups === group.url && (
                 <div className="border-t border-light-gray">
                   <div className="p-3 pt-0 space-y-3 bg-gray-50/50">
-                    {filteredItems.map((item) => (
+                    {filteredItems.map((item: any) => (
                       <CapturedItemCard
                         key={item.id}
                         item={item}

@@ -1,8 +1,17 @@
 import { useCallback } from "react";
 import { CapturedItem, UrlGroup } from "../../types";
 import customTurndown from "../../lib/turndown/customTurndown";
+import showdown from "showdown";
 
 export function useHistoryItems(urlGroups: UrlGroup[], userEmail: string | null) {
+  // Showdown 컨버터 설정
+  const converter = new showdown.Converter({
+    tables: true,
+    tasklists: true,
+    emoji: true,
+    openLinksInNewWindow: true,
+  });
+
   // 모든 아이템 삭제 처리 (현재 사용자의 것만)
   const handleDeleteAll = useCallback(async () => {
     if (!userEmail) {
@@ -207,7 +216,7 @@ export function useHistoryItems(urlGroups: UrlGroup[], userEmail: string | null)
 
   // 아이템 수정 처리 (현재 사용자의 아이템만)
   const handleEdit = useCallback(
-    async (itemToEdit: CapturedItem, newContent: string) => {
+    async (itemToEdit: CapturedItem, newMarkdownContent: string) => {
       if (!userEmail || itemToEdit.userEmail !== userEmail) {
         alert("수정 권한이 없거나 다른 사용자의 아이템입니다.");
         return;
@@ -217,9 +226,17 @@ export function useHistoryItems(urlGroups: UrlGroup[], userEmail: string | null)
         const allItems = (currentData.savedItems || []) as CapturedItem[];
         const allGroups = (currentData.urlGroups || []) as UrlGroup[];
 
+        // 마크다운을 HTML로 변환
+        const newHtmlContent = converter.makeHtml(newMarkdownContent);
+
         const updatedItems = allItems.map((savedItem) =>
           savedItem.id === itemToEdit.id && savedItem.userEmail === userEmail
-            ? { ...savedItem, content: newContent, userEmail }
+            ? {
+                ...savedItem,
+                content: newHtmlContent, // HTML 업데이트
+                markdownContent: newMarkdownContent, // 마크다운 업데이트
+                userEmail,
+              }
             : savedItem
         );
 
@@ -227,7 +244,12 @@ export function useHistoryItems(urlGroups: UrlGroup[], userEmail: string | null)
           if (group.userEmail === userEmail && group.url === itemToEdit.pageUrl) {
             const updatedGroupItems = group.items.map((groupItem) =>
               groupItem.id === itemToEdit.id
-                ? { ...groupItem, content: newContent, userEmail }
+                ? {
+                    ...groupItem,
+                    content: newHtmlContent, // HTML 업데이트
+                    markdownContent: newMarkdownContent, // 마크다운 업데이트
+                    userEmail,
+                  }
                 : groupItem
             );
             return { ...group, items: updatedGroupItems, userEmail };
@@ -244,7 +266,7 @@ export function useHistoryItems(urlGroups: UrlGroup[], userEmail: string | null)
         alert("아이템 수정 중 오류가 발생했습니다.");
       }
     },
-    [userEmail]
+    [userEmail, converter]
   );
 
   return {

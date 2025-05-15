@@ -39,6 +39,7 @@ export interface CapturedItem {
   content: string | ImageContent;
   pageTitle: string;
   pageUrl: string;
+  markdownContent: string;
   timestamp: Date | string;
   userEmail?: string;
   meta?: {

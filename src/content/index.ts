@@ -1,6 +1,7 @@
 import { Message, CapturedItem, Response as ExtensionResponse } from "../types";
 import { extractContent } from "@wrtnlabs/web-content-extractor";
 import { Readability } from "@mozilla/readability";
+import customTurndown from "../lib/turndown/customTurndown";
 
 // NotificationMessage 타입 정의 추가
 type NotificationMessage = {
@@ -61,6 +62,8 @@ const sendMessageToBackground = (message: Message): Promise<ExtensionResponse> =
 let isCapturing = false;
 let isHtmlMode = true; // 항상 HTML 모드 활성화
 let lastCapturedContent: string | null = null;
+// Turndown 서비스 인스턴스 생성
+const turndownService = customTurndown();
 
 // 확장 설정 상태 초기화
 chrome.storage.local.get(["isCapturing"], (result) => {
@@ -205,11 +208,8 @@ document.addEventListener("mouseup", async (e) => {
     const selectedText = selection.toString().trim();
     if (!selectedText) return;
 
-    console.log("텍스트 선택됨:", selectedText.length, "자");
-
     // 이미 저장된 동일한 텍스트가 있는지 확인
     if (lastCapturedContent === selectedText) {
-      console.log("동일한 텍스트 중복 방지");
       return;
     }
 
@@ -222,28 +222,35 @@ document.addEventListener("mouseup", async (e) => {
     tempDiv.appendChild(fragment);
     const htmlContent = tempDiv.innerHTML;
 
+    // HTML을 마크다운으로 변환
+    let markdownContent: string;
+    try {
+      markdownContent = turndownService.turndown(htmlContent);
+    } catch (error) {
+      console.error("HTML 마크다운 변환 오류:", error);
+      markdownContent = selectedText; // 변환 실패 시 원본 텍스트 사용
+    }
+
     // 선택된 범위의 시작점(commonAncestorContainer)을 기준으로 DOM 경로 생성
     const commonAncestor = range.commonAncestorContainer;
     const domPath = getDomPath(commonAncestor);
-    console.log("DOM 경로:", domPath);
 
     // 현재 사이트의 favicon URL 가져오기
     const faviconUrl = getFaviconUrl();
-    console.log("Favicon URL:", faviconUrl);
 
-    // Send only HTML to background
+    // Send HTML and Markdown to background
     try {
       await sendMessageToBackground({
         action: "contentCaptured",
         type: "text",
-        content: htmlContent, // Only original HTML
+        content: htmlContent, // Original HTML
+        markdownContent: markdownContent, // Added markdown content
         meta: {
           originalType: "html",
           domPath: domPath,
           favicon: faviconUrl,
         },
       });
-      console.log("HTML 텍스트 추출 및 저장 요청 성공 (DOM 경로 포함)");
     } catch (error) {
       console.error("텍스트 저장 요청 실패:", error);
     }
@@ -263,8 +270,6 @@ document.addEventListener("dragstart", async (e) => {
     if (target.tagName === "IMG") {
       const imgElement = target as HTMLImageElement;
       if (!imgElement.src) return;
-
-      console.log("이미지 드래그 감지:", imgElement.src);
 
       // 이미지를 Data URL로 변환
       const canvas = document.createElement("canvas");
@@ -295,7 +300,6 @@ document.addEventListener("dragstart", async (e) => {
 
       // 현재 사이트의 favicon URL 가져오기
       const faviconUrl = getFaviconUrl();
-      console.log("Favicon URL:", faviconUrl);
 
       // 안전한 메시지 전송 함수 사용
       try {
@@ -312,7 +316,6 @@ document.addEventListener("dragstart", async (e) => {
             favicon: faviconUrl,
           },
         });
-        console.log("이미지 저장 성공");
       } catch (error) {
         console.error("이미지 저장 실패:", error);
       }
@@ -440,8 +443,6 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
       const iframe = document.body.querySelector("iframe");
       if (iframe && iframe.src) {
         const iframeSrc = iframe.src;
-        console.log("네이버 블로그 페이지 저장 시작:", iframeSrc);
-
         try {
           const response = await sendMessageToBackground({
             action: "fetchIframeContent",
@@ -455,7 +456,6 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
               const wholeBodyDiv = doc.getElementById("postListBody");
 
               if (wholeBodyDiv) {
-                console.log("whole-body div를 찾았습니다.");
                 html = wholeBodyDiv.outerHTML;
               }
             } catch (parseError) {
@@ -465,19 +465,15 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
         } catch (error) {
           console.error("네이버 블로그 iframe 처리 오류:", error);
         }
-      } else {
-        return { success: false, error: "네이버 블로그 글 안에서 저장 버튼을 눌러주세요." };
       }
     } else if (hostname.endsWith("velog.io")) {
       const content = document.querySelector(".atom-one");
       if (content) {
-        console.log("velog 컨텐츠 저장 시작");
         html = content.outerHTML;
       } else {
         return { success: false, error: "벨로그 글 안에서 저장 버튼을 눌러주세요." };
       }
     } else if (hostname.endsWith(".tistory.com")) {
-      console.log("티스토리 블로그 페이지 저장 시작");
       const content = document.querySelector(".tt_article_useless_p_margin");
       if (content) {
         html = content.outerHTML;
@@ -502,7 +498,6 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
         };
       }
     } else if (hostname.endsWith("perplexity.ai")) {
-      // Select elements potentially containing the answer
       const contents = document.querySelectorAll("div.prose p");
       if (contents) {
         html = Array.from(contents)
@@ -546,8 +541,6 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
           .map((content) => content.outerHTML);
 
         html = contents.join("\n\n");
-      } else {
-        return { success: false, error: "나무위키 글 안에서 저장 버튼을 눌러주세요." };
       }
     } else if (hostname.startsWith("notion.so") || hostname.startsWith("euid.notion.site")) {
       const content = document.querySelectorAll(".layout-content");
@@ -559,7 +552,6 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
     }
 
     if (!html) {
-      console.log("일반 페이지 전체 HTML 저장 시도");
       try {
         const doctype = document.doctype
           ? new XMLSerializer().serializeToString(document.doctype)
@@ -575,7 +567,6 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
           ).contentHtmls;
           html = contentHtmls.join("\n");
         }
-        console.log("전체 document HTML을 사용합니다.");
       } catch (extractError) {
         console.error("HTML 추출 중 오류:", extractError);
         html = document.documentElement.outerHTML;
@@ -587,6 +578,7 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
             pageUrl: "",
             timestamp: new Date(),
             content: "",
+            markdownContent: "",
             meta: { errorMessage: "HTML 콘텐츠를 추출할 수 없습니다." },
           });
           return { success: false, error: "HTML 콘텐츠를 추출할 수 없습니다." };
@@ -603,19 +595,27 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
         pageUrl: "",
         timestamp: new Date(),
         content: "",
+        markdownContent: "",
         meta: { errorMessage: errorMsg },
       });
       return { success: false, error: errorMsg };
     }
 
-    console.log("Original HTML 추출 완료, 백그라운드로 전송");
-    console.log("Original HTML length:", html.length);
+    // HTML을 마크다운으로 변환
+    let markdownContent: string;
+    try {
+      markdownContent = turndownService.turndown(html);
+    } catch (error) {
+      console.error("전체 페이지 HTML 마크다운 변환 오류:", error);
+      markdownContent = ""; // 변환 실패 시 빈 문자열
+    }
 
     const faviconUrl = getFaviconUrl();
     const response: ExtensionResponse = await sendMessageToBackground({
       action: "contentCaptured",
       type: "text",
       content: html,
+      markdownContent: markdownContent, // 추가: 마크다운 콘텐츠
       meta: { originalType: "html", saveType: "full", favicon: faviconUrl },
     });
 
@@ -629,7 +629,6 @@ async function savePageHtml(): Promise<{ success: boolean; error?: string }> {
         // 업데이트 완료 알림 (경고/주황색 스타일)
         showNotification({ type: "warning", message: response.message });
       } else if (response.status === "ok") {
-        console.log("새 항목 저장 요청 성공 (백그라운드 처리 대기)");
       }
       // savingComplete 메시지는 background에서 별도로 보내므로 여기서 성공 알림을 직접 띄우지 않음
       return { success: true }; // 작업 요청 자체는 성공
