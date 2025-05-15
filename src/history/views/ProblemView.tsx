@@ -208,6 +208,7 @@ export default function ProblemView() {
         navigate("/");
       }
     };
+
     loadProblem();
   }, [problemId, navigate]);
 

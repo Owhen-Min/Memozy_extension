@@ -12,7 +12,6 @@ interface NewProblemModalProps {
 const QUIZ_TYPES = [
   { id: "사지선다", name: "사지선다" },
   { id: "OX퀴즈", name: "OX퀴즈" },
-  { id: "단답형", name: "단답형" },
 ];
 
 export default function NewProblemModal({

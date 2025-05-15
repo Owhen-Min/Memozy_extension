@@ -6,7 +6,11 @@ export interface SummarySourceRequest {
 }
 
 export interface SummarySourceResponse {
-  data?: string;
+  data?: {
+    collectionId: number;
+    sourceId: number;
+    summary: string;
+  };
   errorMsg?: string;
   errorCode?: string;
 }

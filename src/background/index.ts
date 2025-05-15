@@ -2,7 +2,7 @@ import { DiffDOM } from "diff-dom";
 import * as htmlparser from "htmlparser2";
 import { CapturedItem, MergeAction, Message, Response, ImageContent, UrlGroup } from "../types";
 import { Node as HtmlParserNode, DataNode, Element as HtmlParserElement } from "domhandler";
-import api from "../hooks/useApi"; // API 호출을 위해 추가 (경로 및 사용 가능성 확인 필요)
+import api from "../hooks/useApi";
 
 // 이메일과 토큰을 저장하는 키 상수 (useAuth.ts와 동일하게)
 const AUTH_TOKEN_KEY = "google_auth_token";
@@ -351,17 +351,10 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
             const decodedToken = parseJwt(token);
             if (decodedToken && decodedToken.email) {
               userEmail = decodedToken.email;
-              console.log("토큰에서 이메일 추출 (백그라운드):", userEmail);
 
               // 추출한 이메일을 스토리지에 저장 (향후 사용을 위해)
               await chrome.storage.local.set({ [USER_EMAIL_KEY]: userEmail });
             }
-          }
-
-          if (userEmail) {
-            console.log("현재 사용자 이메일 (백그라운드):", userEmail);
-          } else {
-            console.warn("로그인된 사용자 이메일을 찾을 수 없습니다. 익명으로 저장됩니다.");
           }
         } catch (error) {
           console.error("사용자 정보 가져오기 중 예외 발생 (백그라운드):", error);
@@ -409,7 +402,6 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
             );
 
             if (exactDuplicate) {
-              console.log("정확히 동일한 콘텐츠 발견 (현재 사용자), 중복 저장 방지");
               sendResponse({
                 success: true,
                 status: "skipped_duplicate",
@@ -437,12 +429,6 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
                   );
 
                   if (mergeAction !== "none") {
-                    console.log(
-                      `병합 전략 결정: ${mergeAction}, ID: ${existingItem.id}`,
-                      `기존 경로: ${existingItem.meta.domPath}`,
-                      `새 경로: ${message.meta.domPath}`,
-                      `사용자: ${userEmail}`
-                    );
                     const mergedItem = mergeContent(newItem, existingItem, mergeAction);
                     mergedItem.userEmail = userEmail || undefined; // 병합된 아이템에도 userEmail 보장
 
@@ -522,7 +508,6 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
 
       // 콘텐츠 스크립트 준비 상태 메시지
       if (message.action === "contentScriptReady") {
-        console.log("콘텐츠 스크립트 준비됨");
         sendResponse({ success: true, received: true });
       }
       // 아이템 다운로드 요청 처리
@@ -656,7 +641,6 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
       }
 
       if (message.action === "createProblemRequest") {
-        console.log("문제 생성 요청 수신 (백그라운드):", message);
         const {
           summaryId,
           quizCount,
@@ -672,13 +656,7 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
         }
 
         try {
-          // API 호출 (api 객체가 백그라운드에서 사용 가능해야 함)
-          // 백그라운드에서는 useAuth() 훅을 직접 사용할 수 없으므로 authToken을 메시지로 받아야 함.
-          // useApi.ts의 setAuthToken을 백그라운드에서 직접 호출하거나, API 요청 시 헤더에 토큰을 직접 설정해야 함.
-          // 여기서는 직접 헤더에 설정하는 방식을 가정합니다.
           const apiConfig = authToken ? { headers: { Authorization: `Bearer ${authToken}` } } : {};
-
-          console.log(`API 요청: /quiz/${summaryId}`, { quizCount, quizTypes }, apiConfig);
 
           const { data: result } = await api.post(
             `/quiz/${summaryId}`,
@@ -688,8 +666,6 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
             },
             apiConfig
           );
-
-          console.log("문제 생성 API 응답:", result);
 
           if (result.success) {
             const problemId = summaryId; // 현재 로직에서는 summaryId가 problemId로 사용됨
@@ -712,12 +688,6 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
 
             if (updatedGroup) {
               await chrome.storage.local.set({ urlGroups: updatedGroups });
-              console.log(
-                "ProblemId 업데이트 및 저장 완료:",
-                problemId,
-                "for group:",
-                requestPageUrl
-              );
               sendResponse({
                 success: true,
                 status: "problem_created",

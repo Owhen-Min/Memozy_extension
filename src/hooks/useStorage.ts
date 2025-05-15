@@ -90,7 +90,6 @@ export const useStorage = () => {
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tabs.length > 0 && tabs[0].id) {
         try {
-          // 먼저 content script 준비 상태 확인
           const response = await new Promise<any>((resolve, reject) => {
             chrome.tabs.sendMessage(tabs[0].id!, { action: "contentScriptCheck" }, (response) => {
               if (chrome.runtime.lastError) {

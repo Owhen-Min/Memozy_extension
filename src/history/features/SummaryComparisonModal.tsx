@@ -31,7 +31,7 @@ export default function SummaryComparisonModal({
   >("/quiz-source/summary", {
     onSuccess: (data) => {
       if (data.data) {
-        setAiSummary(data.data);
+        setAiSummary(data.data.summary);
       } else {
         window.alert("요약 생성 중 오류 발생:" + data.errorMsg);
       }
@@ -44,23 +44,25 @@ export default function SummaryComparisonModal({
   // 기존 요약 가져오기
   const { refetch: fetchExistingSummary } = useApiQuery<SummarySourceResponse>(
     ["quiz-source", savedSourceId],
-    `/quiz-source/summary/${savedSourceId}`,
+    `/quiz-source/${savedSourceId}`,
     {
-      enabled: false, // 자동 실행하지 않고 수동으로 제어
+      enabled: !!savedSourceId, // 자동 실행하지 않고 수동으로 제어
     }
   );
 
   // savedSourceId가 변경될 때 요약 가져오기
   useEffect(() => {
     if (savedSourceId) {
+      console.log("savedSourceId:" + savedSourceId);
       fetchExistingSummary().then((result) => {
+        console.log("result:", result.data);
         if (result.data?.data) {
-          onSubmit(result.data.data, "markdown", savedSourceId);
+          onSubmit(result.data.data.summary, "markdown", savedSourceId);
           window.alert("기존에 저장된 요약이 있습니다. 해당 요약을 불러옵니다.");
         }
       });
     }
-  }, [savedSourceId, fetchExistingSummary]);
+  }, [savedSourceId, fetchExistingSummary, onSubmit]);
 
   // 저장 API mutation 설정
   const { mutate: saveSummary, isPending: isSaving } = useApiMutation<
@@ -79,9 +81,6 @@ export default function SummaryComparisonModal({
           if (response.errorMsg) {
             // sourceId 추출
             setSavedSourceId(response.errorMsg);
-            // fetchExistingSummary는 useEffect에서 자동으로 호출됨
-          } else {
-            window.alert("저장된 요약의 ID를 찾을 수 없습니다.");
           }
         } else {
           window.alert(response.errorMsg);
@@ -175,7 +174,7 @@ export default function SummaryComparisonModal({
                   </div>
                 </div>
               ) : (
-                <CustomReactMarkdown>{aiSummary.replace(/\\n/g, "\n")}</CustomReactMarkdown>
+                <CustomReactMarkdown>{aiSummary}</CustomReactMarkdown>
               )}
             </div>
           </div>
