@@ -8,6 +8,7 @@ type NotificationMessage = {
   type: "info" | "warning" | "error";
   message: string;
 };
+window.MEMOZY_EXTENSION_INSTALLED = true;
 
 // 페이지에 스크립트가 로드되었음을 알림
 document.addEventListener("DOMContentLoaded", () => {

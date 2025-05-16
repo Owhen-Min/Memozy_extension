@@ -3,7 +3,8 @@ import { setAuthToken as setToken } from "./useApi";
 
 const AUTH_TOKEN_KEY = "google_auth_token";
 const USER_EMAIL_KEY = "user_email"; // 사용자 이메일 저장 키
-const GOOGLE_AUTH_URL = "https://memozy.site/oauth2/authorization/google?state=mode:extension";
+// const GOOGLE_AUTH_URL = "https://memozy.site/oauth2/authorization/google?state=mode:extension";
+const GOOGLE_AUTH_URL = "https://test.memozy.site/oauth2/authorization/google?state=mode:extension";
 
 // URL 해시 또는 쿼리 파라미터에서 access_token 추출하는 헬퍼 함수
 const extractTokenFromUrl = (url: string): string | null => {

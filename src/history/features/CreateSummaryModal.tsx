@@ -113,7 +113,11 @@ export default function CreateSummaryModal({
     } else if (typeof item.content === "string") {
       // HTML 태그 제거 및 &nbsp;를 공백으로 치환
       const textContent = item.content.replace(/<[^>]*>?/gm, "").replace(/&nbsp;/g, " ");
-      return <p className="text-sm text-gray-600 line-clamp-2">{textContent || "(내용 없음)"}</p>;
+      return (
+        <p className="text-sm text-gray-600 line-clamp-2 break-words">
+          {textContent || "(내용 없음)"}
+        </p>
+      );
     }
     return <p className="text-sm text-gray-500 italic">(미리보기 불가)</p>;
   };

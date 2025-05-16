@@ -12,6 +12,13 @@ interface SummaryComparisonModalProps {
   pageTitle: string;
 }
 
+interface SummaryMadeResponse {
+  success: boolean;
+  errorMsg: string | null;
+  errorCode: string | null;
+  data: string | null;
+}
+
 export default function SummaryComparisonModal({
   isOpen,
   onClose,
@@ -26,12 +33,12 @@ export default function SummaryComparisonModal({
 
   // API mutation 설정
   const { mutate: generateSummary, isPending: isLoading } = useApiMutation<
-    SummarySourceResponse,
+    SummaryMadeResponse,
     SummarySourceRequest
   >("/quiz-source/summary", {
     onSuccess: (data) => {
       if (data.data) {
-        setAiSummary(data.data.summary);
+        setAiSummary(data.data);
       } else {
         window.alert("요약 생성 중 오류 발생:" + data.errorMsg);
       }

@@ -64,7 +64,7 @@ export default function ProblemView() {
   });
 
   const { data: collectionData, refetch: refetchCollection } = useApiQuery<CollectionResponse>(
-    ["collection"],
+    ["collection" + userEmail],
     `/collection`
   );
 
