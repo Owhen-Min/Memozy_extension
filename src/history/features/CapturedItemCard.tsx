@@ -95,8 +95,6 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
               markdownContent = customTurndown().turndown(item.content);
             } catch (error) {
               console.error("Error converting HTML to Markdown in Card:", error);
-              // Fallback: Display raw HTML within a code block or similar
-              // For simplicity, just show an error message or the raw HTML
               markdownContent = `\`\`\`html\n${item.content}\n\`\`\``; // Show raw HTML in code block as fallback
             }
           } else {
@@ -156,17 +154,21 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
             <span className="text-xs">저장</span>
           </button>
 
-          <button
-            onClick={() => {
-              setIsEditing(true);
-              setEditContent(typeof item.content === "string" ? item.content : "");
-            }}
-            className="flex flex-col text-xs w-[35px] h-[50px] px-1 rounded border bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100 transition-all flex items-center justify-center gap-1"
-            title="수정"
-          >
-            <span className="text-lg">✏️</span>
-            <span className="text-xs">수정</span>
-          </button>
+          {item.type === "text" && (
+            <button
+              onClick={() => {
+                setIsEditing(true);
+                setEditContent(
+                  item.markdownContent || (typeof item.content === "string" ? item.content : "")
+                );
+              }}
+              className="flex flex-col text-xs w-[35px] h-[50px] px-1 rounded border bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100 transition-all flex items-center justify-center gap-1"
+              title="수정"
+            >
+              <span className="text-lg">✏️</span>
+              <span className="text-xs">수정</span>
+            </button>
+          )}
 
           <button
             onClick={() => onDelete(item.id)}
@@ -208,7 +210,7 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
         <div className="relative">{renderContent()}</div>
       )}
       {showScrollButton && (
-        <div className="sticky bottom-4 z-20 flex justify-end px-4 cursor-pointer">
+        <div className="sticky bottom-4 z-9 flex justify-end px-4 cursor-pointer">
           <button
             onClick={scrollToTop}
             className="flex flex-col w-[40px] h-[40px] rounded-full border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center"

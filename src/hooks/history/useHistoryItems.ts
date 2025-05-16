@@ -159,23 +159,24 @@ export function useHistoryItems(urlGroups: UrlGroup[], userEmail: string | null)
 
   // 아이템 다운로드 처리
   const handleDownload = useCallback(async (item: CapturedItem) => {
-    console.log("handleDownload called with item:", item);
     try {
       let markdownContent: string | undefined = undefined;
       const turndownService = customTurndown();
 
       // Convert HTML to Markdown for text/html types
       if (item.type === "text" && typeof item.content === "string") {
-        try {
-          markdownContent = turndownService.turndown(item.content);
-        } catch (conversionError) {
-          console.error("HTML to Markdown 변환 오류:", conversionError);
-          alert("Markdown 변환 중 오류가 발생했습니다.");
-          return; // Stop download if conversion fails
+        if (item.markdownContent) {
+          markdownContent = item.markdownContent;
+        } else {
+          try {
+            markdownContent = turndownService.turndown(item.content);
+          } catch (conversionError) {
+            console.error("HTML to Markdown 변환 오류:", conversionError);
+            alert("Markdown 변환 중 오류가 발생했습니다.");
+            return; // Stop download if conversion fails
+          }
         }
       } else if (item.type !== "image") {
-        // Handle cases where content is not a string for text/html
-        console.warn("다운로드할 텍스트/HTML 콘텐츠가 문자열이 아닙니다:", item);
         markdownContent = `# ${
           item.pageTitle || "제목 없음"
         }\n\n콘텐츠를 Markdown으로 변환할 수 없습니다.`;
