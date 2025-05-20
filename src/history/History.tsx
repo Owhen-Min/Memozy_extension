@@ -7,6 +7,7 @@ import CreateSummaryModal from "./features/CreateSummaryModal";
 import CreateProblemModal from "./features/CreateProblemModal";
 import { ItemType } from "../types";
 import { useAuth } from "../hooks/useAuth";
+import { useEffect, useRef } from "react";
 
 import {
   useUrlGroups,
@@ -17,13 +18,11 @@ import {
 } from "../hooks/history";
 
 export default function History() {
-  const { isAuthenticated, authLoading, login, userEmail } = useAuth();
-
+  const { isAuthenticated, login, userEmail } = useAuth();
   // URL 그룹 관련 훅
   const {
     urlGroups,
     setUrlGroups,
-    loading,
     filter,
     setFilter,
     searchTerm,
@@ -51,6 +50,32 @@ export default function History() {
     openProblemModal,
   } = useHistoryUI();
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isSummaryModalOpen) {
+      const handleWheel = (e: WheelEvent) => {
+        const target = e.target as Node;
+        const scrollEl = scrollRef.current;
+        if (!scrollEl) return;
+
+        // 스크롤 가능한 높이가 있어야만 위임
+        const isScrollable = scrollEl.scrollHeight > scrollEl.clientHeight;
+
+        // 내부 스크롤 영역이 아닌 곳에서만 위임
+        const isOutsideScrollArea = !scrollEl.contains(target);
+
+        if (isOutsideScrollArea && isScrollable) {
+          scrollEl.scrollTop += e.deltaY;
+          e.preventDefault(); // 브라우저 기본 스크롤 막기
+        }
+      };
+
+      window.addEventListener("wheel", handleWheel, { passive: false });
+      return () => window.removeEventListener("wheel", handleWheel);
+    }
+  }, [isSummaryModalOpen]);
+
   // 아이템 CRUD 관련 훅
   const { handleDeleteAll, handleDeleteUrlGroup, handleDelete, handleDownload, handleEdit } =
     useHistoryItems(urlGroups, userEmail);
@@ -60,19 +85,6 @@ export default function History() {
 
   // 문제 생성 관련 훅
   const { handleProblemModalSubmit } = useProblemCreation(setCreatingProblemsUrls, userEmail);
-
-  // 인증 로딩 중
-  if (authLoading) {
-    return (
-      <div className="max-w-3xl flex flex-col h-screen items-center justify-center mx-auto bg-level1 text-black p-5">
-        <h1 className="text-3xl font-bold text-level6 m-0 mb-4">Memozy</h1>
-        <div className="flex items-center justify-center gap-2 text-gray">
-          <div className="w-5 h-5 border-2 border-gray/20 rounded-full border-t-main animate-spin"></div>
-          <span>인증 상태 확인 중...</span>
-        </div>
-      </div>
-    );
-  }
 
   // 인증되지 않았을 때
   if (!isAuthenticated) {
@@ -91,20 +103,6 @@ export default function History() {
           <span>Google 계정으로 로그인</span>
         </button>
         <p className="text-sm text-gray mt-4">로그인 후 이 페이지가 자동으로 새로고침됩니다.</p>
-      </div>
-    );
-  }
-
-  // 인증되었고 데이터 로딩 중
-  if (loading) {
-    return (
-      <div className="max-w-3xl flex flex-col h-screen items-center justify-center mx-auto bg-level1 text-black p-5">
-        <img src="/icon128.png" alt="Memozy" className="w-9 h-9 mb-4" />
-        <h1 className="text-3xl font-bold text-level6 m-0 mb-4">Memozy</h1>
-        <div className="flex items-center justify-center gap-2 text-gray">
-          <div className="w-5 h-5 border-2 border-gray/20 rounded-full border-t-main animate-spin" />
-          <span>캡처 기록 로드 중...</span>
-        </div>
       </div>
     );
   }
@@ -161,7 +159,7 @@ export default function History() {
 
             <div className="flex flex-1">
               <input
-                className="w-full py-2 px-3 border border-light-gray rounded text-sm"
+                className="w-full bg-white py-2 px-3 border border-light-gray rounded text-sm"
                 type="text"
                 placeholder="내용, 제목, URL 검색..."
                 value={searchTerm}
@@ -173,7 +171,7 @@ export default function History() {
         )}
       </header>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto" ref={scrollRef}>
         {filteredGroups.map((group: any) => {
           const filteredItems = getFilteredItemsInGroup(group);
           if (filteredItems.length === 0) return null;
@@ -289,7 +287,7 @@ export default function History() {
                       e.stopPropagation();
                       handleDeleteUrlGroup(group.url);
                     }}
-                    title="이 그룹의 모든 항목 삭제"
+                    title="이  항목 삭제"
                   >
                     <span className="text-lg">🗑️</span>
                     <span className="text-xs">삭제</span>
@@ -298,7 +296,7 @@ export default function History() {
               </div>
 
               {expandedGroups === group.url && (
-                <div className="border-t border-light-gray">
+                <div className="relative border-t border-light-gray">
                   <div className="p-3 pt-0 space-y-3 bg-gray-50/50">
                     {filteredItems.map((item: any) => (
                       <CapturedItemCard

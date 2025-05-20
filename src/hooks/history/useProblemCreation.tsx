@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { CapturedItem, UrlGroup, Message, Response as ExtensionResponse } from "../../types";
 import { useAuth } from "../useAuth";
+import { useModal } from "../../context/ModalContext";
 
 export interface ProblemCreationData {
   quizCount: number;
@@ -12,7 +13,7 @@ export function useProblemCreation(
   loggedInUserEmail: string | null // 현재 로그인된 사용자 이메일
 ) {
   const { authToken } = useAuth(); // 백그라운드 메시지에 토큰 전달용
-
+  const { openModal } = useModal();
   const handleProblemModalSubmit = useCallback(
     async (
       data: ProblemCreationData,
@@ -38,7 +39,14 @@ export function useProblemCreation(
 
       if (missingInfo.length > 0) {
         const missingInfoText = missingInfo.join(", ");
-        alert(`문제 생성에 필요한 정보가 부족합니다: ${missingInfoText}`);
+        openModal(
+          <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+            <h1 className="text-2xl font-bold text-center mb-4">
+              문제 생성에 필요한 정보가 부족합니다: ${missingInfoText}
+            </h1>
+          </div>,
+          { closeable: true }
+        );
         setCreatingProblemsUrls((prev) => ({ ...prev, [selectedGroupInfo?.url || ""]: false }));
         return;
       }
@@ -52,7 +60,14 @@ export function useProblemCreation(
 
       // 요청하는 그룹의 이메일과 현재 로그인한 사용자의 이메일이 일치하는지 확인
       if (groupInfo.userEmail !== loggedInUserEmail) {
-        alert("현재 로그인된 사용자의 자료에 대해서만 문제를 생성할 수 있습니다.");
+        openModal(
+          <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+            <h1 className="text-2xl font-bold text-center mb-4">
+              현재 로그인된 사용자의 자료에 대해서만 문제를 생성할 수 있습니다.
+            </h1>
+          </div>,
+          { closeable: true }
+        );
         setCreatingProblemsUrls((prev) => ({ ...prev, [groupInfo.url]: false }));
         return;
       }
@@ -78,7 +93,6 @@ export function useProblemCreation(
         // 백그라운드로 메시지 전송
         chrome.runtime.sendMessage(messagePayload, (response: ExtensionResponse | undefined) => {
           if (chrome.runtime.lastError) {
-            console.error("문제 생성 요청 오류:", chrome.runtime.lastError.message);
             alert(`문제 생성 요청 중 오류: ${chrome.runtime.lastError.message}`);
             setCreatingProblemsUrls((prev) => ({ ...prev, [pageUrl]: false }));
             return;
@@ -86,12 +100,20 @@ export function useProblemCreation(
 
           if (response && response.success && response.status === "problem_created") {
             console.log("문제 생성 성공 (백그라운드):");
-            // 백그라운드가 스토리지를 업데이트하면 useUrlGroups가 자동으로 UI를 갱신할 것임
-            // 필요시 여기서 setUrlGroups(response.updatedGroup) 등을 호출할 수 있으나, 중복 업데이트 가능성
-            // alert("문제가 성공적으로 생성되었습니다."); // 백그라운드에서 알림을 주거나, 여기서 간단히 처리
           } else if (response && response.errorCode === "QUIZ400") {
-            alert(
-              `${itemForProblem.pageTitle} \n문제 생성 중 오류가 발생했습니다. \nMemozy는 현재 IT&개발자에 관련된 내용만 취급하고 있습니다.`
+            openModal(
+              <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+                <h1 className="text-2xl font-pre-bold text-center mb-4">
+                  <span className="line-clamp-1 font-bold">{itemForProblem.pageTitle}</span>
+                  문제 생성에 실패했습니다.
+                </h1>
+                <p className="text-center text-lg font-pre-bold">
+                  Memozy는&nbsp;
+                  <span className="text-red-500 font-bold">IT&개발자</span>에 관련된 내용만 취급하고
+                  있습니다.
+                </p>
+              </div>,
+              { closeable: true }
             );
           } else {
             console.error("문제 생성 실패 (백그라운드):", response?.error);
@@ -113,18 +135,34 @@ export function useProblemCreation(
   const handleCreateProblem = useCallback(
     (group: UrlGroup) => {
       if (loggedInUserEmail && group.userEmail !== loggedInUserEmail) {
-        alert("다른 사용자의 그룹에 대한 문제를 생성할 수 없습니다.");
+        openModal(
+          <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+            <h1 className="text-2xl font-bold text-center mb-4">
+              다른 사용자의 그룹에 대한 문제를 생성할 수 없습니다.
+            </h1>
+          </div>,
+          { closeable: true }
+        );
         return null;
       }
       if (group.problemId) {
-        // navigate(`/problem/${group.problemId}`); // 직접적인 navigate 대신 다른 방식으로 처리 가능
-        console.log(`이미 생성된 문제가 있습니다: ${group.problemId}`);
+        openModal(
+          <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+            <h1 className="text-2xl font-bold text-center mb-4">이미 생성된 문제가 있습니다.</h1>
+          </div>,
+          { closeable: true }
+        );
         // 이미 생성된 문제 페이지로 이동하는 로직은 History.tsx 등 호출부에서 처리하는 것이 나을 수 있음
         return null;
       }
 
       if (!group.summaryId) {
-        alert("먼저 요약을 생성해주세요.");
+        openModal(
+          <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+            <h1 className="text-2xl font-bold text-center mb-4">먼저 요약을 생성해주세요.</h1>
+          </div>,
+          { closeable: true }
+        );
         return null;
       }
 

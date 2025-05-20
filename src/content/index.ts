@@ -8,7 +8,16 @@ type NotificationMessage = {
   type: "info" | "warning" | "error";
   message: string;
 };
-window.MEMOZY_EXTENSION_INSTALLED = true;
+
+// DOM 이벤트 방식으로 변경 (CSP 우회)
+const customEvent = new CustomEvent("memozyExtensionInstalled", { detail: { installed: true } });
+document.dispatchEvent(customEvent);
+
+// 또는 MutationObserver로 표시하기
+const marker = document.createElement("div");
+marker.id = "__memozy_extension_installed";
+marker.style.display = "none";
+(document.head || document.documentElement).appendChild(marker);
 
 // 페이지에 스크립트가 로드되었음을 알림
 document.addEventListener("DOMContentLoaded", () => {
@@ -20,10 +29,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const sendReadyMessage = () => {
     chrome.runtime.sendMessage({ action: "contentScriptReady" }, (response) => {
       if (chrome.runtime.lastError) {
-        console.error("초기 메시지 전송 오류:", chrome.runtime.lastError);
         if (retryCount < maxRetries) {
           retryCount++;
-          console.log(`콘텐츠 스크립트 준비 메시지 재시도 (${retryCount}/${maxRetries})...`);
           setTimeout(sendReadyMessage, retryInterval);
         }
       }
@@ -211,6 +218,8 @@ document.addEventListener("mouseup", async (e) => {
 
     // 이미 저장된 동일한 텍스트가 있는지 확인
     if (lastCapturedContent === selectedText) {
+      // 백그라운드에서 중복 응답을 받은 것처럼 직접 처리
+      showNotification({ type: "info", message: "이미 저장된 콘텐츠입니다." });
       return;
     }
 

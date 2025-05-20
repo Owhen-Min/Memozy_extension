@@ -196,7 +196,14 @@ export function useUrlGroups(userEmail: string | null) {
         const searchText = searchTerm.toLowerCase();
         items = items.filter((item) => {
           if (typeof item.content === "string") {
-            return item.content.toLowerCase().includes(searchText);
+            return (
+              item.content.toLowerCase().includes(searchText) ||
+              item.pageTitle.toLowerCase().includes(searchText)
+            );
+          }
+
+          if (item.type === "image") {
+            return item.pageTitle.toLowerCase().includes(searchText);
           }
           // 이미지 콘텐츠의 경우 항상 검색 결과에 포함 (텍스트 검색 불가)
           return false;

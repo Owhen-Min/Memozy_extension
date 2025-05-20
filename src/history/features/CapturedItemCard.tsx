@@ -2,6 +2,7 @@ import { CapturedItem, ImageContent } from "../../types";
 import { useState, useEffect, useRef } from "react";
 import customTurndown from "../../lib/turndown/customTurndown";
 import CustomReactMarkdown from "../../lib/react-markdown/CustomReactMarkdown";
+import { useModal } from "../../context/ModalContext";
 
 interface CapturedItemCardProps {
   item: CapturedItem;
@@ -16,6 +17,7 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
   onDownload,
   onEdit,
 }) => {
+  const { openModal, closeModal } = useModal();
   const [showScrollButton, setShowScrollButton] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const groupContainerRef = useRef<HTMLDivElement | null>(null);
@@ -25,10 +27,36 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
   );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const openDeleteModal = () => {
+    openModal(
+      <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+        <h1 className="text-2xl font-bold text-center mb-4">정말로 삭제하시겠습니까?</h1>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => {
+              onDelete(item.id);
+              closeModal();
+            }}
+            className="bg-red-400 text-lg text-white px-4 py-2 rounded-md"
+          >
+            삭제
+          </button>
+          <button
+            onClick={() => closeModal()}
+            className="bg-gray-500 text-lg text-white px-4 py-2 rounded-md"
+          >
+            취소
+          </button>
+        </div>
+      </div>,
+      { closeable: true }
+    );
+  };
+
   useEffect(() => {
     // 컴포넌트 마운트 시 부모 그룹 컨테이너 찾기
     if (cardRef.current) {
-      groupContainerRef.current = cardRef.current.closest(".group-container");
+      groupContainerRef.current = cardRef.current.closest(".card-content");
     }
 
     const handleScroll = () => {
@@ -93,6 +121,7 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
             try {
               // Convert HTML content to Markdown on the fly
               markdownContent = customTurndown().turndown(item.content);
+              item.markdownContent = markdownContent;
             } catch (error) {
               console.error("Error converting HTML to Markdown in Card:", error);
               markdownContent = `\`\`\`html\n${item.content}\n\`\`\``; // Show raw HTML in code block as fallback
@@ -104,7 +133,7 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
 
         return (
           <div className="card-content relative text-sm">
-            <div className="prose prose-slate dark:prose-invert max-w-none">
+            <div className="prose prose-slate max-w-none">
               <CustomReactMarkdown>{markdownContent}</CustomReactMarkdown>
             </div>
           </div>
@@ -125,6 +154,23 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
 
   const handleEditSubmit = () => {
     if (typeof item.content === "string") {
+      if (editContent.trim() === "") {
+        openModal(
+          <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+            <h1 className="text-2xl font-bold text-center mb-4">수정할 내용이 없습니다.</h1>
+            <div className="grid grid-cols-1 gap-2">
+              <button
+                onClick={() => closeModal()}
+                className="bg-gray-500 text-lg text-white px-4 py-2 rounded-md"
+              >
+                확인
+              </button>
+            </div>
+          </div>,
+          { closeable: true }
+        );
+        return;
+      }
       onEdit(item, editContent);
       setIsEditing(false);
     }
@@ -136,7 +182,7 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
   };
 
   return (
-    <div ref={cardRef} className="card flex flex-col gap-2 border-b border-light-gray pb-2">
+    <div ref={cardRef} className="card flex flex-col gap-2 border-b border-light-gray">
       <div className="card-header flex h-18 justify-between items-center sticky top-18 bg-white z-10 py-2 border-b border-light-gray">
         <div className="flex gap-2">
           <span className="timestamp text-base">{formatDate(item.timestamp)}</span>
@@ -145,39 +191,61 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
           </span>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => onDownload(item)}
-            className="flex flex-col text-xs w-[35px] h-[50px] px-1 rounded border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center gap-1"
-            title="다운로드"
-          >
-            <span className="text-lg">📥</span>
-            <span className="text-xs">저장</span>
-          </button>
-
-          {item.type === "text" && (
+          {!isEditing && (
             <button
-              onClick={() => {
-                setIsEditing(true);
-                setEditContent(
-                  item.markdownContent || (typeof item.content === "string" ? item.content : "")
-                );
-              }}
-              className="flex flex-col text-xs w-[35px] h-[50px] px-1 rounded border bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100 transition-all flex items-center justify-center gap-1"
-              title="수정"
+              onClick={() => onDownload(item)}
+              className="flex flex-col text-xs w-[35px] h-[50px] px-1 rounded border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center gap-1"
+              title="다운로드"
             >
-              <span className="text-lg">✏️</span>
-              <span className="text-xs">수정</span>
+              <span className="text-lg">📥</span>
+              <span className="text-xs">저장</span>
             </button>
           )}
 
-          <button
-            onClick={() => onDelete(item.id)}
-            className="flex flex-col text-xs w-[35px] h-[50px] px-1 rounded border bg-red-50 border-red-200 text-red-600 hover:bg-red-100 transition-all flex items-center justify-center gap-1"
-            title="삭제"
-          >
-            <span className="text-lg">🗑️</span>
-            <span className="text-xs">삭제</span>
-          </button>
+          {item.type === "text" &&
+            (isEditing ? (
+              <button
+                onClick={handleEditSubmit}
+                className="flex flex-col text-xs w-[35px] h-[50px] px-1 rounded border bg-blue-100 border-blue-200 text-blue-600 hover:bg-blue-200 transition-all flex items-center justify-center gap-1"
+                title="수정"
+              >
+                <span className="text-lg">✏️</span>
+                <span className="text-xs">저장</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setIsEditing(true);
+                  setEditContent(
+                    item.markdownContent || (typeof item.content === "string" ? item.content : "")
+                  );
+                }}
+                className="flex flex-col text-xs w-[35px] h-[50px] px-1 rounded border bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100 transition-all flex items-center justify-center gap-1"
+                title="수정"
+              >
+                <span className="text-lg">✏️</span>
+                <span className="text-xs">수정</span>
+              </button>
+            ))}
+          {!isEditing ? (
+            <button
+              onClick={openDeleteModal}
+              className="flex flex-col text-xs w-[35px] h-[50px] px-1 rounded border bg-red-50 border-red-200 text-red-600 hover:bg-red-100 transition-all flex items-center justify-center gap-1"
+              title="삭제"
+            >
+              <span className="text-lg">🗑️</span>
+              <span className="text-xs">삭제</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleEditCancel}
+              className="flex flex-col text-xs w-[35px] h-[50px] px-1 rounded border bg-red-50 border-red-200 text-red-600 hover:bg-red-100 transition-all flex items-center justify-center gap-1"
+              title="취소"
+            >
+              <span className="text-lg">❌</span>
+              <span className="text-xs">취소</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -191,26 +259,12 @@ const CapturedItemCard: React.FC<CapturedItemCardProps> = ({
             rows={1}
             aria-label="콘텐츠 수정"
           />
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={handleEditCancel}
-              className="flex flex-col text-xs w-[60px] h-[40px] px-1 rounded border bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100 transition-all flex items-center justify-center gap-1"
-            >
-              취소
-            </button>
-            <button
-              onClick={handleEditSubmit}
-              className="flex flex-col text-xs w-[60px] h-[40px] px-1 rounded border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center gap-1"
-            >
-              저장
-            </button>
-          </div>
         </div>
       ) : (
-        <div className="relative">{renderContent()}</div>
+        renderContent()
       )}
       {showScrollButton && (
-        <div className="sticky bottom-4 z-9 flex justify-end px-4 cursor-pointer">
+        <div className="sticky h-[0px] right-4 bottom-4 z-9 flex justify-end px-4 cursor-pointer">
           <button
             onClick={scrollToTop}
             className="flex flex-col w-[40px] h-[40px] rounded-full border bg-main border-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center"

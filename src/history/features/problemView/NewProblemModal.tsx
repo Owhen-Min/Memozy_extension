@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Quiz } from "../../views/ProblemView";
-
+import { useModal } from "../../../context/ModalContext";
 interface NewProblemModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -23,17 +23,27 @@ export default function NewProblemModal({
 }: NewProblemModalProps) {
   const [selectedQuizIds, setSelectedQuizIds] = useState<number[]>([]);
   const [selectedQuizTypes, setSelectedQuizTypes] = useState<string[]>([]);
-
+  const { openModal } = useModal();
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (selectedQuizIds.length === 0) {
-      alert("재생성할 문제를 선택해주세요.");
+      openModal(
+        <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+          <h1 className="text-2xl font-bold text-center mb-4">재생성할 문제를 선택해주세요.</h1>
+        </div>,
+        { closeable: true }
+      );
       return;
     }
 
     if (selectedQuizTypes.length === 0) {
-      alert("생성할 문제 유형을 선택해주세요.");
+      openModal(
+        <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+          <h1 className="text-2xl font-bold text-center mb-4">생성할 문제 유형을 선택해주세요.</h1>
+        </div>,
+        { closeable: true }
+      );
       return;
     }
 

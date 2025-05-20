@@ -39,10 +39,8 @@ export const useStorage = () => {
               action: newState ? "startCapture" : "stopCapture",
               isCapturing: newState,
             });
-            console.log(`캡처 상태 메시지 전송 성공: ${newState ? "활성화" : "비활성화"}`);
           } catch (error) {
             console.warn("콘텐츠 스크립트에 메시지 전송 실패:", error);
-            // 오류가 있더라도 스토리지 상태는 이미 변경됨
           }
         }
       } catch (error) {
@@ -70,18 +68,12 @@ export const useStorage = () => {
               isCapturing: isCapturing,
               isHtmlMode: newState,
             });
-            console.log(`HTML 모드 메시지 전송 성공: ${newState ? "활성화" : "비활성화"}`);
           } catch (error) {
-            console.warn("콘텐츠 스크립트에 메시지 전송 실패:", error);
             // 오류가 있더라도 스토리지 상태는 이미 변경됨
           }
         }
-      } catch (error) {
-        console.error("탭 조회 오류:", error);
-      }
-    } catch (error) {
-      console.error("HTML 모드 변경 중 오류:", error);
-    }
+      } catch (error) {}
+    } catch (error) {}
   }, [isHtmlMode, isCapturing]);
 
   // HTML 저장 실행
@@ -124,7 +116,7 @@ export const useStorage = () => {
           }
         } catch (error: any) {
           console.error("콘텐츠 스크립트와 통신 오류:", error);
-          return { success: false, error: error.message || "페이지와 통신 중 오류가 발생했습니다" };
+          return { success: false, error: "Memozy 페이지에서는 캡처가 불가능합니다" };
         }
       }
       return { success: false, error: "현재 활성화된 탭을 찾을 수 없습니다" };

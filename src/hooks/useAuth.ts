@@ -91,14 +91,12 @@ export const useAuth = () => {
           return;
         }
 
-        console.log("리디렉션 URL:", redirectUrl);
         const token = extractTokenFromUrl(redirectUrl);
 
         if (token) {
           const decodedToken = parseJwt(token);
           if (decodedToken && decodedToken.email) {
             const email = decodedToken.email;
-            console.log("토큰에서 이메일 추출:", email);
             // 이메일 저장 및 상태 설정
             try {
               await chrome.storage.local.set({ [AUTH_TOKEN_KEY]: token, [USER_EMAIL_KEY]: email });
@@ -108,7 +106,6 @@ export const useAuth = () => {
               setIsAuthenticated(true);
               setAuthToken(token);
               setUserEmail(email);
-              console.log("토큰 및 이메일 저장, 인증 성공:", email);
               setAuthError(null); // 성공 시 오류 메시지 초기화
             } catch (error: any) {
               console.error("토큰/이메일 저장 또는 사용자 정보 가져오기 오류:", error);
@@ -144,9 +141,7 @@ export const useAuth = () => {
       setIsAuthenticated(false);
       setAuthToken(null);
       setUserEmail(null);
-      console.log("로그아웃 성공");
     } catch (error: any) {
-      console.error("로그아웃 오류:", error);
       setAuthError(error.message || "로그아웃 실패");
       // 인증 상태는 이미 false일 수 있으므로 그대로 둡니다.
     } finally {
@@ -163,14 +158,12 @@ export const useAuth = () => {
       if (areaName === "local") {
         let authChanged = false;
         if (changes[AUTH_TOKEN_KEY]) {
-          console.log("Auth Token 변경 감지:", changes[AUTH_TOKEN_KEY]);
           const newToken = changes[AUTH_TOKEN_KEY].newValue;
           setAuthToken(newToken || null);
           setIsAuthenticated(!!newToken);
           authChanged = true;
         }
         if (changes[USER_EMAIL_KEY]) {
-          console.log("User Email 변경 감지:", changes[USER_EMAIL_KEY]);
           const newEmail = changes[USER_EMAIL_KEY].newValue;
           setUserEmail(newEmail || null);
           // 이메일 변경 시 인증 상태도 토큰 유무에 따라 다시 설정

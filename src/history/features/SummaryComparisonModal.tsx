@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import CustomReactMarkdown from "../../lib/react-markdown/CustomReactMarkdown";
 import { useApiQuery, useApiMutation } from "../../hooks/useApi";
 import { SummarySourceRequest, SummarySourceResponse } from "../../types/summary";
+import { useModal } from "../../context/ModalContext";
 
 interface SummaryComparisonModalProps {
   isOpen: boolean;
@@ -30,6 +31,7 @@ export default function SummaryComparisonModal({
   const [aiSummary, setAiSummary] = useState<string>("");
   const [selectedType, setSelectedType] = useState<"markdown" | "ai">("markdown");
   const [savedSourceId, setSavedSourceId] = useState<string>("");
+  const { openModal } = useModal();
 
   // API mutation 설정
   const { mutate: generateSummary, isPending: isLoading } = useApiMutation<
@@ -37,14 +39,36 @@ export default function SummaryComparisonModal({
     SummarySourceRequest
   >("/quiz-source/summary", {
     onSuccess: (data) => {
-      if (data.data) {
+      if (data?.data === null) {
+        openModal(
+          <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+            <h1 className="text-2xl font-bold text-center mb-4">
+              요약을 생성하기에 충분한 내용이 없습니다.
+            </h1>
+          </div>,
+          { closeable: true }
+        );
+        onClose();
+      } else if (data?.data) {
         setAiSummary(data.data);
       } else {
-        window.alert("요약 생성 중 오류 발생:" + data.errorMsg);
+        openModal(
+          <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+            <h1 className="text-2xl font-bold text-center mb-4">요약 생성 중 오류 발생</h1>
+            <p className="text-center text-gray-600">{data.errorMsg}</p>
+          </div>,
+          { closeable: true }
+        );
       }
     },
     onError: (error) => {
-      window.alert("요약 생성 중 오류 발생:" + error);
+      openModal(
+        <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+          <h1 className="text-2xl font-bold text-center mb-4">요약 생성 중 오류 발생</h1>
+          <p className="text-center text-gray-600">{error.message}</p>
+        </div>,
+        { closeable: true }
+      );
     },
   });
 
@@ -60,12 +84,18 @@ export default function SummaryComparisonModal({
   // savedSourceId가 변경될 때 요약 가져오기
   useEffect(() => {
     if (savedSourceId) {
-      console.log("savedSourceId:" + savedSourceId);
       fetchExistingSummary().then((result) => {
-        console.log("result:", result.data);
         if (result.data?.data) {
           onSubmit(result.data.data.summary, "markdown", savedSourceId);
-          window.alert("기존에 저장된 요약이 있습니다. 해당 요약을 불러옵니다.");
+          openModal(
+            <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+              <h1 className="text-2xl font-bold text-center mb-4">
+                기존에 저장된 요약이 있습니다. 해당 요약을 불러옵니다.
+              </h1>
+            </div>,
+            { closeable: true }
+          );
+          onClose();
         }
       });
     }
@@ -90,12 +120,26 @@ export default function SummaryComparisonModal({
             setSavedSourceId(response.errorMsg);
           }
         } else {
-          window.alert(response.errorMsg);
+          openModal(
+            <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+              <h1 className="text-2xl font-bold text-center mb-4">
+                요약 저장 중 오류가 발생했습니다.
+              </h1>
+              <p className="text-center text-gray-600">{response.errorMsg}</p>
+            </div>,
+            { closeable: true }
+          );
         }
       }
     },
     onError: (error) => {
-      window.alert("요약 저장 중 오류가 발생했습니다: " + error);
+      openModal(
+        <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+          <h1 className="text-2xl font-bold text-center mb-4">요약 저장 중 오류가 발생했습니다.</h1>
+          <p className="text-center text-gray-600">{error.message}</p>
+        </div>,
+        { closeable: true }
+      );
     },
   });
 

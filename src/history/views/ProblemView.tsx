@@ -6,6 +6,7 @@ import { UrlGroup } from "../../types";
 import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from "@headlessui/react";
 import NewProblemModal from "../features/problemView/NewProblemModal";
 import { useAuth } from "../../hooks/useAuth";
+import { useModal } from "../../context/ModalContext";
 
 export interface Quiz {
   quizId: number;
@@ -53,6 +54,7 @@ export default function ProblemView() {
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState<boolean>(false);
   const [isNewProblemModalOpen, setIsNewProblemModalOpen] = useState<boolean>(false);
+  const { openModal } = useModal();
   // API로부터 퀴즈 데이터 가져오기
   const {
     data: quizData,
@@ -79,7 +81,6 @@ export default function ProblemView() {
             const updatedUrlGroups = urlGroups.map((group: UrlGroup) => {
               // 문제 ID와 사용자 이메일이 모두 일치하는 경우에만 업데이트
               if (group.problemId === numericProblemId && group.userEmail === userEmail) {
-                console.log(`그룹 업데이트: problemId=${numericProblemId}, userEmail=${userEmail}`);
                 return {
                   ...group,
                   items: [], // items를 비움
@@ -94,29 +95,57 @@ export default function ProblemView() {
           // 성공 모달 표시
           setIsSuccessModalOpen(true);
         } else {
-          alert(data.errorMsg || "퀴즈 저장에 실패했습니다.");
+          openModal(
+            <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+              <h1 className="text-2xl font-bold text-center mb-4">
+                {data.errorMsg || "퀴즈 저장에 실패했습니다."}
+              </h1>
+            </div>,
+            { closeable: true }
+          );
         }
       },
       onError: (error) => {
-        alert("퀴즈 저장에 실패했습니다.\n" + error);
+        openModal(
+          <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+            <h1 className="text-2xl font-bold text-center mb-4">"퀴즈 저장에 실패했습니다."</h1>
+            <p className="text-center text-gray-600">{error.message}</p>
+          </div>,
+          { closeable: true }
+        );
       },
     }
   );
 
   const handleSave = () => {
     if (quizSource?.isSubmitted) {
-      alert("이미 문제가 생성된 그룹입니다.");
+      openModal(
+        <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+          <h1 className="text-2xl font-bold text-center mb-4">이미 문제가 생성된 그룹입니다.</h1>
+        </div>,
+        { closeable: true }
+      );
       navigate("/");
       return;
     }
 
     if (!selectedCollectionId) {
-      alert("컬렉션을 선택해주세요.");
+      openModal(
+        <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+          <h1 className="text-2xl font-bold text-center mb-4">컬렉션을 선택해주세요.</h1>
+        </div>,
+        { closeable: true }
+      );
       return;
     }
 
     if (selectedIds.length === 0) {
-      alert("최소 하나의 퀴즈를 선택해주세요.");
+      openModal(
+        <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+          <h1 className="text-2xl font-bold text-center mb-4">최소 하나의 퀴즈를 선택해주세요.</h1>
+        </div>,
+        { closeable: true }
+      );
       return;
     }
 
@@ -153,17 +182,36 @@ export default function ProblemView() {
           setNewCollectionName("");
           setIsModalOpen(false);
         } else {
-          alert(data.errorMsg || "컬렉션 생성에 실패했습니다.");
+          openModal(
+            <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+              <h1 className="text-2xl font-bold text-center mb-4">
+                {data.errorMsg || "컬렉션 생성에 실패했습니다."}
+              </h1>
+            </div>,
+            { closeable: true }
+          );
         }
       },
       onError: (error) => {
-        alert("컬렉션 생성 중 오류가 발생했습니다.\n" + error);
+        openModal(
+          <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+            <h1 className="text-2xl font-bold text-center mb-4">
+              "컬렉션 생성 중 오류가 발생했습니다."
+            </h1>
+          </div>,
+          { closeable: true }
+        );
       },
     });
 
   const handleCreateCollection = () => {
     if (!newCollectionName.trim()) {
-      alert("컬렉션 이름을 입력해주세요.");
+      openModal(
+        <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+          <h1 className="text-2xl font-bold text-center mb-4">컬렉션 이름을 입력해주세요.</h1>
+        </div>,
+        { closeable: true }
+      );
       return;
     }
 
@@ -199,12 +247,23 @@ export default function ProblemView() {
           setQuizSource(foundProblemGroup);
         } else {
           // 문제를 찾을 수 없는 경우
-          alert("문제를 찾을 수 없습니다.");
+          openModal(
+            <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+              <h1 className="text-2xl font-bold text-center mb-4">문제를 찾을 수 없습니다.</h1>
+            </div>,
+            { closeable: true }
+          );
           navigate("/");
         }
       } catch (error) {
-        console.error("문제 로드 오류:", error);
-        alert("문제를 불러오는 중 오류가 발생했습니다.");
+        openModal(
+          <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+            <h1 className="text-2xl font-bold text-center mb-4">
+              문제를 불러오는 중 오류가 발생했습니다.
+            </h1>
+          </div>,
+          { closeable: true }
+        );
         navigate("/");
       }
     };
@@ -233,11 +292,23 @@ export default function ProblemView() {
         // 성공 후 퀴즈 데이터 다시 불러오기
         refetchQuiz();
       } else {
-        alert("문제 재생성에 실패했습니다.");
+        openModal(
+          <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+            <h1 className="text-2xl font-bold text-center mb-4">문제 재생성에 실패했습니다.</h1>
+          </div>,
+          { closeable: true }
+        );
       }
     },
     onError: () => {
-      alert("문제 재생성 중 오류가 발생했습니다.");
+      openModal(
+        <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+          <h1 className="text-2xl font-bold text-center mb-4">
+            문제 재생성 중 오류가 발생했습니다.
+          </h1>
+        </div>,
+        { closeable: true }
+      );
     },
   });
 
@@ -305,7 +376,9 @@ export default function ProblemView() {
                   }
                 }}
               >
-                <div className="font-medium mb-1">{quiz.type}</div>
+                <div className="font-medium mb-1">
+                  {quiz.type === "사지선다" ? "객관식" : "OX 문제"}
+                </div>
                 <div className="flex items-center">
                   <input
                     type="checkbox"

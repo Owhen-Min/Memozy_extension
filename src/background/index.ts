@@ -524,7 +524,8 @@ chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) =>
               const dataUrl = fileReader.result as string;
               const pageTitle = item.pageTitle || "untitled";
               const sanitizedTitle =
-                pageTitle.replace(/[<>:"/\\|?*]+/g, "_").substring(0, 50) || "download";
+                pageTitle.replace(/[^a-zA-Z가-힣0-9]+/g, "").substring(0, 50) || "download";
+
               const filename = `${sanitizedTitle}.md`;
 
               chrome.downloads.download(
@@ -758,7 +759,6 @@ chrome.runtime.onInstalled.addListener((details) => {
 // 확장 프로그램 컨텍스트 무효화 감지
 chrome.runtime.onSuspend.addListener(() => {
   isContextValid = false;
-  console.log("확장 프로그램 컨텍스트가 중단되었습니다.");
 });
 
 // 확장 프로그램 아이콘 클릭시 뱃지 초기화

@@ -2,12 +2,14 @@ import { useParams, useNavigate } from "react-router";
 import { useEffect, useState } from "react";
 import { CapturedItem, UrlGroup } from "../../types";
 import CustomReactMarkdown from "../../lib/react-markdown/CustomReactMarkdown";
+import { useModal } from "../../context/ModalContext";
 
 export default function SummaryView() {
   const { summaryId } = useParams();
   const navigate = useNavigate();
   const [summary, setSummary] = useState<UrlGroup | null>(null);
   const [loading, setLoading] = useState(true);
+  const { openModal } = useModal();
 
   useEffect(() => {
     const loadSummary = async () => {
@@ -27,22 +29,46 @@ export default function SummaryView() {
               setSummary(foundSummaryGroup);
             } else {
               // 요약을 찾을 수 없는 경우
-              alert("요약을 찾을 수 없습니다.");
+              openModal(
+                <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+                  <h1 className="text-2xl font-bold text-center mb-4">요약을 찾을 수 없습니다.</h1>
+                </div>,
+                { closeable: true }
+              );
               navigate("/");
             }
           } else {
             // 유효하지 않은 summaryId (숫자로 변환 불가)
-            alert("유효하지 않은 요약 ID입니다.");
+            openModal(
+              <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+                <h1 className="text-2xl font-bold text-center mb-4">
+                  유효하지 않은 요약 ID입니다.
+                </h1>
+              </div>,
+              { closeable: true }
+            );
             navigate("/");
           }
         } else {
           // summaryId가 URL에 없는 경우
-          alert("요약 ID가 없습니다.");
+          openModal(
+            <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+              <h1 className="text-2xl font-bold text-center mb-4">요약 ID가 없습니다.</h1>
+            </div>,
+            { closeable: true }
+          );
           navigate("/");
         }
       } catch (error) {
         console.error("요약 로드 오류:", error);
-        alert("요약을 불러오는 중 오류가 발생했습니다.");
+        openModal(
+          <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+            <h1 className="text-2xl font-bold text-center mb-4">
+              요약을 불러오는 중 오류가 발생했습니다.
+            </h1>
+          </div>,
+          { closeable: true }
+        );
         navigate("/");
       } finally {
         setLoading(false);
@@ -54,7 +80,12 @@ export default function SummaryView() {
 
   const handleDownloadSummary = async () => {
     if (!summary) {
-      alert("다운로드할 요약 내용이 없습니다.");
+      openModal(
+        <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+          <h1 className="text-2xl font-bold text-center mb-4">다운로드할 요약 내용이 없습니다.</h1>
+        </div>,
+        { closeable: true }
+      );
       return;
     }
 
@@ -82,16 +113,34 @@ export default function SummaryView() {
       if (!response || !response.success) {
         console.error("다운로드 실패:", response?.error || "알 수 없는 오류");
         const errorMessage = response?.error || "알 수 없는 오류";
-        alert(`다운로드 실패: ${errorMessage}`);
+        openModal(
+          <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+            <h1 className="text-2xl font-bold text-center mb-4">다운로드 실패: {errorMessage}</h1>
+          </div>,
+          { closeable: true }
+        );
       }
     } catch (error: any) {
       console.error("다운로드 요청 오류:", error);
       if (error.message?.includes("Extension context invalidated")) {
-        alert(
-          "다운로드 실패: 확장 프로그램 컨텍스트 오류. 페이지를 새로고침하거나 확장 프로그램을 다시 로드해보세요."
+        openModal(
+          <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+            <h1 className="text-2xl font-bold text-center mb-4">
+              다운로드 실패: 확장 프로그램 컨텍스트 오류. 페이지를 새로고침하거나 확장 프로그램을
+              다시 로드해보세요.
+            </h1>
+          </div>,
+          { closeable: true }
         );
       } else {
-        alert(`다운로드 요청 오류: ${error.message || error}`);
+        openModal(
+          <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+            <h1 className="text-2xl font-bold text-center mb-4">
+              다운로드 요청 오류: {error.message || error}
+            </h1>
+          </div>,
+          { closeable: true }
+        );
       }
     }
   };

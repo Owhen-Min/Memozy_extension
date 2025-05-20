@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { CapturedItem, ImageContent } from "../../types";
 import SummaryComparisonModal from "./SummaryComparisonModal";
 import customTurndown from "../../lib/turndown/customTurndown";
+import { useModal } from "../../context/ModalContext";
 
 interface CreateSummaryModalProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ export default function CreateSummaryModal({
   const [isComparisonModalOpen, setIsComparisonModalOpen] = useState(false);
   const [markdownContent, setMarkdownContent] = useState("");
   const [selectedItems, setSelectedItems] = useState<CapturedItem[]>([]);
+  const { openModal, closeModal } = useModal();
 
   // TurndownService 초기화
   const turndownService = customTurndown();
@@ -58,7 +60,19 @@ export default function CreateSummaryModal({
     e.preventDefault();
     const selectedItems = items.filter((item) => selectedItemIds.has(item.id));
     if (selectedItems.length === 0) {
-      alert("요약할 항목을 1개 이상 선택해주세요.");
+      openModal(
+        <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+          <h1 className="text-2xl font-bold text-center mb-4">정말로 삭제하시겠습니까?</h1>
+
+          <button
+            onClick={() => closeModal()}
+            className="bg-gray-500 text-lg text-white px-4 py-2 rounded-md"
+          >
+            취소
+          </button>
+        </div>,
+        { closeable: true }
+      );
       return;
     }
 

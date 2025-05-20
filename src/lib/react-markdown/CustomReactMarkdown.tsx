@@ -22,7 +22,7 @@ const CustomReactMarkdown: React.FC<CustomReactMarkdownProps> = ({ children, ...
           const { ref, ...syntaxProps } = props as any;
 
           return match ? (
-            <div className="rounded-md overflow-hidden my-4">
+            <div className="rounded-md overflow-hidden">
               <SyntaxHighlighter
                 style={oneLight}
                 language={match[1]}
