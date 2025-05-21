@@ -382,7 +382,7 @@ function showNotification(itemOrMessage: CapturedItem | NotificationMessage) {
     // CapturedItem 타입
     switch (itemOrMessage.type) {
       case "text":
-        message = "텍스트가 저장되었습니다.";
+        message = "콘텐츠가 저장되었습니다.";
         bgColor = "linear-gradient(135deg, #4CAF50, #388E3C)";
         break;
       case "image":
