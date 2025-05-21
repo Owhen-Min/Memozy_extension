@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from "react-router";
 import "../../Global.css";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useApiQuery, useApiMutation } from "../../hooks/useApi";
 import { UrlGroup } from "../../types";
 import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from "@headlessui/react";
@@ -55,6 +55,7 @@ export default function ProblemView() {
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState<boolean>(false);
   const [isNewProblemModalOpen, setIsNewProblemModalOpen] = useState<boolean>(false);
   const { openModal } = useModal();
+  const saveTimeout = useRef<NodeJS.Timeout | null>(null);
   // API로부터 퀴즈 데이터 가져오기
   const {
     data: quizData,
@@ -117,6 +118,13 @@ export default function ProblemView() {
     }
   );
 
+  const debouncedSaveQuiz = (quizIdList: string[]) => {
+    if (saveTimeout.current) clearTimeout(saveTimeout.current);
+    saveTimeout.current = setTimeout(() => {
+      saveQuiz({ quizIdList });
+    }, 300); // 300ms 이내에 또 호출되면 무시
+  };
+
   const handleSave = () => {
     if (quizSource?.isSubmitted) {
       openModal(
@@ -149,9 +157,7 @@ export default function ProblemView() {
       return;
     }
 
-    saveQuiz({
-      quizIdList: selectedIds,
-    });
+    debouncedSaveQuiz(selectedIds.map(String));
   };
 
   const { mutate: createCollection, isPending: isCreatingCollection } =

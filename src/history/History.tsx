@@ -25,6 +25,7 @@ export default function History() {
     setUrlGroups,
     filter,
     setFilter,
+    loading,
     searchTerm,
     setSearchTerm,
     getFilteredItemsInGroup,
@@ -144,7 +145,7 @@ export default function History() {
         </div>
 
         {/* 필터 컨트롤 */}
-        {urlGroups.length > 0 && (
+        {!loading && urlGroups.length > 0 && (
           <div className="flex w-full gap-2.5 mt-4 mb-1 bg-level1 py-1 z-10">
             <select
               className="w-25 flex-shrink-0 py-2 px-3 border border-light-gray rounded bg-white text-sm"

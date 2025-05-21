@@ -39,15 +39,38 @@ export default function SummaryComparisonModal({
     SummarySourceRequest
   >("/quiz-source/summary", {
     onSuccess: (data) => {
-      if (data?.data === null) {
-        openModal(
-          <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
-            <h1 className="text-2xl font-bold text-center mb-4">
-              요약을 생성하기에 충분한 내용이 없습니다.
-            </h1>
-          </div>,
-          { closeable: true }
-        );
+      if (!data?.success) {
+        if (data?.errorCode === "QUIZ400") {
+          openModal(
+            <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+              <h1 className="text-2xl font-bold text-center mb-4">
+                요약을 생성하기에 충분한 내용이 없습니다.
+              </h1>
+            </div>,
+            { closeable: true }
+          );
+        } else if (data?.errorCode === "QUIZ420") {
+          openModal(
+            <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+              <h1 className="text-2xl font-bold text-center mb-4">요약할 내용이 너무 많습니다.</h1>
+              <p className="text-lg font-prebold text-center">
+                적은 선택지를 선택하시거나
+                <br />
+                수정을 통해 내용을 줄여주세요.
+              </p>
+            </div>,
+            { closeable: true }
+          );
+        } else {
+          openModal(
+            <div className="bg-white rounded-2xl p-6 max-w-[600px] w-full mx-4 relative">
+              <h1 className="text-2xl font-bold text-center mb-4">
+                요약을 생성하기에 충분한 내용이 없습니다.
+              </h1>
+            </div>,
+            { closeable: true }
+          );
+        }
         onClose();
       } else if (data?.data) {
         setAiSummary(data.data);
@@ -205,16 +228,32 @@ export default function SummaryComparisonModal({
           <div className="w-1/2 flex flex-col" onClick={() => setSelectedType("ai")}>
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-medium">AI 요약</h3>
-              <button
-                className={`px-3 py-1 rounded ${
-                  selectedType === "ai"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-                onClick={() => setSelectedType("ai")}
-              >
-                선택
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  className="`px-3 py-1 rounded border border-gray-300"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    generateSummary({
+                      type: 0,
+                      title: pageTitle,
+                      context: markdownContent,
+                      url: pageUrl,
+                    });
+                  }}
+                >
+                  요약 재생성
+                </button>
+                <button
+                  className={`px-3 py-1 rounded ${
+                    selectedType === "ai"
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                  onClick={() => setSelectedType("ai")}
+                >
+                  선택
+                </button>
+              </div>
             </div>
             <div className="flex-1 border rounded p-4 overflow-y-auto overflow-x-auto bg-gray-50">
               {isLoading ? (
